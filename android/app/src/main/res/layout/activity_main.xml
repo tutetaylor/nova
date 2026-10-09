@@ -129,6 +129,24 @@
             android:textSize="20sp"
             android:visibility="gone" />
 
+        <!-- Modo charla: conversación continua -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/charlar"
+            style="@style/Widget.Material3.Button.OutlinedButton.Icon"
+            android:layout_width="wrap_content"
+            android:layout_height="46dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="20dp"
+            android:text="Charlar"
+            android:textColor="@color/texto"
+            android:textSize="15sp"
+            app:cornerRadius="100dp"
+            app:icon="@drawable/ic_charla"
+            app:iconTint="@color/estrella"
+            app:strokeColor="@color/linea" />
+
         <!-- Aviso de configuración pendiente -->
         <LinearLayout
             android:id="@+id/aviso"
