@@ -1,0 +1,12 @@
+anthropic>=0.40
+python-dotenv
+requests
+vosk
+sounddevice
+numpy
+SpeechRecognition
+edge-tts
+pygame
+pyttsx3
+pyautogui
+pyperclip

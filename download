@@ -1,0 +1,18 @@
+# Nunca subir la clave de la API
+.env
+
+# Python
+__pycache__/
+.venv/
+pc/datos/
+pc/modelos/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.iml
+*.apk
+*.keystore

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nova</string>
+    <string name="accesibilidad_desc">Permite que Nova lea la pantalla y toque, escriba y deslice por vos cuando se lo pedís con la voz. Nova solo actúa cuando le hablás. El botón de accesibilidad también sirve para hablarle.</string>
+</resources>
