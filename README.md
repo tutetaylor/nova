@@ -36,13 +36,13 @@ Funcionan separados: el de Android anda en cualquier lugar, sin la PC.
 Subí esta carpeta a un repo de GitHub (privado). Con cada cambio, **Actions** arma solo:
 
 - **`Nova.exe`** para Windows → en Releases, "Nova para PC". Doble clic y listo, sin instalar Python.
-  La primera vez te pide la clave, el nombre y la ciudad, y baja el modelo de voz. Tu configuración,
+  Se abre una ventana con la estrella. La primera vez se abren los ajustes para que pegues la clave gratis de Gemini; al encenderla baja sola la voz offline. Tu configuración,
   notas y recordatorios quedan en `C:\Users\<vos>\Nova\`.
 - **`Nova.apk`** para Android → en Releases, "Nova - última versión". Abrilo desde el celular e instalalo.
 
 Si Windows muestra "Windows protegió su PC": **Más información → Ejecutar de todas formas** (pasa con
 cualquier programa propio sin firma digital). Para que arranque con Windows: `Win+R` → `shell:startup`
-→ pegá ahí un acceso directo a `Nova.exe`. Para el modo texto: abrí una terminal y corré `Nova.exe --texto`.
+→ pegá ahí un acceso directo a `Nova.exe`. 
 
 Si preferís correrlo desde el código, seguí con las secciones de abajo.
 
@@ -64,8 +64,9 @@ copy .env.example .env          # Mac/Linux: cp .env.example .env
 Abrí `.env`, pegá tu clave y personalizá nombre, voz y ciudad. Después:
 
 ```bash
-python main.py            # modo voz: decí "Nova" y hablale
-python main.py --texto    # modo texto, para probar sin micrófono
+python main.py            # con ventana: la estrella, la charla y los ajustes
+python main.py --consola  # solo voz, en la terminal
+python main.py --texto    # escribiendo en la terminal, sin micrófono
 ```
 
 Probá: *"Nova, ¿qué clima hay mañana?"*, *"abrí Spotify"*, *"poné música"*, *"subí el volumen"*,
@@ -97,7 +98,11 @@ Requisitos: Android 8 o superior, app de Google instalada (reconocimiento de voz
 5. **Iniciar Nova**. Queda una notificación fija: está escuchando.
 
 ### Usarlo
-- Decí **"Nova"** y esperá el tono, o todo junto: *"Nova, poné una alarma a las 7"*.
+- Decí **"Nova"**, esperá el bip (es la señal de "te escucho") y hacé tu pedido.
+- La primera vez que lo iniciás baja la voz offline (~40 MB, solo una vez). Desde ahí, esperar
+  a que digas "Nova" funciona sin internet, **sin bip y sin pausar tu música ni tus audios**.
+- Los pedidos comunes (hora, alarmas, temporizadores, linterna, volumen, música, abrir apps)
+  se resuelven al instante en el celular, sin internet y sin gastar cuota.
 - Sin hablar en voz alta: botón **Hablar** de la notificación o el **botón de accesibilidad**.
 - Si te responde con una pregunta, contestá directo sin repetir "Nova".
 - *"Gracias"* o *"chau"* corta la charla; *"olvidá todo"* empieza una conversación nueva.
@@ -120,13 +125,17 @@ toca, escribe y repite hasta terminar.
 
 ## Límites honestos (frente a Siri o Alexa)
 
-- **La batería:** escuchar siempre gasta. Siri y Alexa usan un chip dedicado a la palabra de activación;
-  acá se usa el reconocedor de Google en loop. Si te molesta, apagá Nova y usá el botón de accesibilidad.
+- **La batería:** escuchar siempre gasta algo. Siri y Alexa usan un chip dedicado a la palabra de
+  activación; acá la escucha es offline y liviana, pero usa el procesador. Si te molesta, apagá Nova
+  y usá el botón de accesibilidad.
+- **El nombre:** la escucha offline solo reconoce palabras de su diccionario en español. Si no
+  reacciona a tu nombre, probá con otro (por ejemplo "Nova", "Luna", "Lola") desde la app.
 - **Pantalla bloqueada:** escucha con la pantalla apagada, pero Android no deja tocar apps detrás del
   bloqueo con PIN. Desbloqueá y volvé a pedir.
 - **Android 14+:** después de reiniciar el celular tenés que abrir Nova y tocar **Iniciar** (Android no
   permite que el micrófono arranque solo).
-- **Bip:** algunos celulares hacen un bip al reiniciar la escucha; la app lo silencia, pero no en todos los modelos.
+- **Mientras hacés el pedido** (los segundos después del bip) el audio se pausa, igual que con
+  Siri o el Asistente de Google, y vuelve a sonar cuando termina.
 - **WhatsApp:** arma el número en formato internacional (Argentina = 549 + área + número). Si tenés contactos
   de otro país, guardalos con `+`.
 - No se puede publicar en Google Play así (las reglas de SMS/llamadas/accesibilidad lo impiden); es para uso personal.
