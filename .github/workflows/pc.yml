@@ -30,7 +30,7 @@ jobs:
       - name: Verificar que todo importa bien
         working-directory: pc
         env:
-          ANTHROPIC_API_KEY: sk-ant-prueba
+          GEMINI_API_KEY: clave-de-prueba-para-importar
         run: python -c "import config, herramientas, cerebro, voz, instalar_modelo; print(len(herramientas.REGISTRO), 'herramientas OK')"
 
       - name: Armar Nova.exe
