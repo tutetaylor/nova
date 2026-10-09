@@ -2,7 +2,7 @@ name: Compilar Nova para PC (Windows)
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths: ["pc/**", ".github/workflows/pc.yml"]
   workflow_dispatch:
 
