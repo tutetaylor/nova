@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Cielo nocturno -->
+    <color name="cielo">#121033</color>
+    <color name="cielo_alto">#1B1850</color>
+    <!-- Superficies: tarjetas, burbujas de Nova, campos -->
+    <color name="nube">#1E1B48</color>
+    <color name="nube_alta">#262260</color>
+    <color name="linea">#2E2A66</color>
+    <!-- Texto -->
+    <color name="texto">#F5F3FF</color>
+    <color name="bruma">#A9A4D9</color>
+    <!-- La estrella: único color de acción -->
+    <color name="estrella">#FFD27A</color>
+    <color name="sobre_estrella">#2A1E00</color>
+    <!-- Nebulosa: solo cuando piensa y en enlaces -->
+    <color name="nebulosa">#8F7DFF</color>
+    <!-- Estados de permisos -->
+    <color name="ok">#86E3B9</color>
+    <color name="falta">#FF9F8F</color>
+</resources>

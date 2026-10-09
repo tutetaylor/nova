@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Nova" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/estrella</item>
+        <item name="colorOnPrimary">@color/sobre_estrella</item>
+        <item name="colorSecondary">@color/nebulosa</item>
+        <item name="colorSurface">@color/nube</item>
+        <item name="colorOnSurface">@color/texto</item>
+        <item name="colorOnSurfaceVariant">@color/bruma</item>
+        <item name="colorOutline">@color/linea</item>
+        <item name="android:colorBackground">@color/cielo</item>
+        <item name="android:windowBackground">@color/cielo</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:textColorPrimary">@color/texto</item>
+        <item name="android:textColorSecondary">@color/bruma</item>
+        <item name="android:textColorHint">#7C77B0</item>
+        <item name="android:colorControlActivated">@color/estrella</item>
+        <item name="android:textCursorDrawable">@drawable/cursor</item>
+    </style>
+
+    <!-- Títulos de sección en ajustes -->
+    <style name="Nova.Seccion">
+        <item name="android:textSize">15sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textColor">@color/bruma</item>
+        <item name="android:layout_marginTop">28dp</item>
+        <item name="android:layout_marginBottom">10dp</item>
+        <item name="android:layout_marginStart">6dp</item>
+    </style>
+
+    <!-- Grupo de ajustes -->
+    <style name="Nova.Grupo">
+        <item name="android:orientation">vertical</item>
+        <item name="android:background">@drawable/bg_grupo</item>
+        <item name="android:padding">18dp</item>
+    </style>
+
+    <style name="Nova.Etiqueta">
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/texto</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:layout_marginBottom">8dp</item>
+    </style>
+
+    <style name="Nova.Ayuda">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/bruma</item>
+        <item name="android:lineSpacingMultiplier">1.2</item>
+        <item name="android:layout_marginTop">6dp</item>
+    </style>
+
+    <style name="Nova.Campo">
+        <item name="android:background">@drawable/bg_campo</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/texto</item>
+        <item name="android:singleLine">true</item>
+    </style>
+</resources>
