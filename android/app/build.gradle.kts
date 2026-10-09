@@ -11,8 +11,19 @@ android {
         applicationId = "com.mateo.nova"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // GitHub pasa el número de compilación: cada versión nueva es mayor y Android la toma como actualización
+        versionCode = (project.findProperty("numeroVersion") as String?)?.toIntOrNull() ?: 1
+        versionName = "1.${versionCode}"
+    }
+
+    // Firma fija: todas las versiones salen con la misma llave, así se actualizan sin desinstalar
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("nova.keystore")
+            storePassword = "nova-firma"
+            keyAlias = "nova"
+            keyPassword = "nova-firma"
+        }
     }
 
     buildTypes {
