@@ -107,7 +107,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             ACCION_DETENER -> { prefs.quiereEncendido = false; stopSelf(); return START_NOT_STICKY }
             // Todo lo que hacés vos (encender, tocar la estrella, escribir) la deja encendida
             ACCION_ESCUCHAR -> { prefs.quiereEncendido = true; main.post { if (estado != Estado.PENSANDO) { tts?.stop(); escucharPedido() } } }
-            ACCION_TEXTO -> { prefs.quiereEncendido = true; intent.getStringExtra(EXTRA_TEXTO)?.let { t -> main.post { procesar(t) } } }
+            ACCION_TEXTO -> { prefs.quiereEncendido = true; intent?.getStringExtra(EXTRA_TEXTO)?.let { t -> main.post { procesar(t) } } }
             ACCION_CHARLA -> {
                 prefs.quiereEncendido = true
                 main.post {
