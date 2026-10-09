@@ -1,11 +1,36 @@
 """Configuración del asistente. Todo se puede cambiar desde el archivo .env."""
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-BASE = Path(__file__).resolve().parent
-load_dotenv(BASE / ".env")
+# Como script: todo vive en la carpeta pc/. Como Nova.exe: en C:\Users\<vos>\Nova
+EMPAQUETADO = getattr(sys, "frozen", False)
+BASE = Path.home() / "Nova" if EMPAQUETADO else Path(__file__).resolve().parent
+BASE.mkdir(parents=True, exist_ok=True)
+ARCHIVO_ENV = BASE / ".env"
+
+
+def _primer_inicio():
+    """La primera vez pregunta lo básico y crea el .env, así el .exe funciona sin tocar archivos."""
+    print("=" * 60 + "\n  Bienvenido a Nova. Configuración inicial (una sola vez)\n" + "=" * 60)
+    clave = ""
+    while not clave.startswith("sk-ant-"):
+        clave = input("Pegá tu clave de la API de Anthropic (sk-ant-...): ").strip()
+    nombre = input("¿Cómo querés que se llame tu asistente? [Nova]: ").strip() or "Nova"
+    usuario = input("¿Cómo te llamás? [Mateo]: ").strip() or "Mateo"
+    ciudad = input("¿En qué ciudad estás? [Buenos Aires]: ").strip() or "Buenos Aires"
+    ARCHIVO_ENV.write_text(
+        f"ANTHROPIC_API_KEY={clave}\nNOMBRE={nombre}\nUSUARIO={usuario}\nCIUDAD={ciudad}\n"
+        "VOZ=es-AR-ElenaNeural\nVELOCIDAD_VOZ=+8%\nMODELO=claude-sonnet-5-5\nSEGUIR_CHARLANDO=1\n",
+        encoding="utf-8")
+    print(f"\nListo. Podés cambiar todo después en {ARCHIVO_ENV}\n")
+
+
+if not ARCHIVO_ENV.exists() and not os.getenv("ANTHROPIC_API_KEY") and sys.stdin and sys.stdin.isatty():
+    _primer_inicio()
+load_dotenv(ARCHIVO_ENV)
 
 # --- Identidad ---
 NOMBRE = os.getenv("NOMBRE", "Nova")                 # palabra de activación y nombre del asistente

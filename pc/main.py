@@ -42,7 +42,9 @@ def modo_texto(cerebro, boca):
 
 
 def modo_voz(cerebro, boca):
+    from instalar_modelo import asegurar_modelo
     from voz import Oido
+    asegurar_modelo()
     oido = Oido()
     boca.decir(f"Hola {config.USUARIO}, soy {config.NOMBRE}. Decí mi nombre cuando me necesites.")
     while True:
@@ -74,4 +76,20 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    for flujo in (sys.stdout, sys.stderr):        # la consola de Windows a veces no muestra acentos ni emojis
+        try:
+            flujo.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    try:
+        main()
+    except BaseException as e:
+        if config.EMPAQUETADO and not isinstance(e, (KeyboardInterrupt, SystemExit)):
+            import traceback
+            traceback.print_exc()
+            input("\nNova se cerró por un error. Copiá el mensaje de arriba y apretá Enter para salir.")
+        elif isinstance(e, SystemExit) and config.EMPAQUETADO:
+            print(e)
+            input("\nApretá Enter para salir.")
+        else:
+            raise
