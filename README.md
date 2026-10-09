@@ -123,6 +123,17 @@ toca, escribe y repite hasta terminar.
 
 ---
 
+## Modo charla y modo libre
+
+- **Modo charla:** decí *"Nova, charlemos"* o tocá **Charlar**. Desde ahí es una conversación continua:
+  hablás, te responde, y te sigue escuchando sin que digas "Nova" de nuevo. Charla como un amigo, te
+  pregunta cosas y se acuerda de lo que le contaste. Termina con *"chau"*, *"terminamos"*, tocando
+  **Terminar charla**, o si te quedás callado un rato.
+- **Modo libre:** en Ajustes, apagá **Pedir permiso antes de actuar** y Nova hace todo directo (mensajes,
+  llamadas, publicar) sin preguntarte. Aun así, siempre pregunta antes de pagar o borrar, nunca escribe
+  contraseñas ni datos de tarjeta, e ignora órdenes que aparezcan escritas en la pantalla o en mensajes
+  (para que nadie pueda manejar tu celular mandándote un texto).
+
 ## Límites honestos (frente a Siri o Alexa)
 
 - **La batería:** escuchar siempre gasta algo. Siri y Alexa usan un chip dedicado a la palabra de
