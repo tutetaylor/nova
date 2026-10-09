@@ -7,6 +7,7 @@ import sys
 
 import config
 import herramientas
+import rapidos
 from cerebro import Cerebro
 from voz import Boca, normalizar
 
@@ -26,6 +27,15 @@ def atender(cerebro, boca, pedido):
     if p in PARA_OLVIDAR:
         cerebro.olvidar()
         boca.decir("Listo, empezamos de cero.")
+        return False
+    try:
+        rapido = rapidos.intentar(pedido)          # atajo instantáneo, sin internet ni cuota
+    except Exception as e:
+        print("Atajo falló:", e)
+        rapido = None
+    if rapido is not None:
+        if rapido:
+            boca.decir(rapido)
         return False
     try:
         respuesta = cerebro.pensar(pedido)

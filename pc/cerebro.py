@@ -85,24 +85,35 @@ class Cerebro:
         self.limite = Limitador(config.LIMITE_POR_HORA, config.DATOS / "uso.json")
         self.modelos = [config.MODELO] + [m for m in config.MODELOS_RESPALDO if m != config.MODELO]
         self.http = requests.Session()
+        self.declaraciones = _declaraciones()
+        self.sin_nivel_pensamiento = set()
 
     def olvidar(self):
         self.historial = []
 
+    def _cuerpo(self, modelo):
+        gen = {"maxOutputTokens": 1024}
+        if modelo not in self.sin_nivel_pensamiento:      # pensar poco = responder mucho más rápido
+            gen["thinkingConfig"] = {"thinkingLevel": "low"}
+        return {"systemInstruction": {"parts": [{"text": PERSONALIDAD}]},
+                "contents": self.historial, "tools": self.declaraciones, "generationConfig": gen}
+
     def _llamar(self):
-        cuerpo = {"systemInstruction": {"parts": [{"text": PERSONALIDAD}]},
-                  "contents": self.historial, "tools": _declaraciones(),
-                  "generationConfig": {"maxOutputTokens": 1024}}
         ultimo_error = ""
         for modelo in self.modelos:              # si uno se quedó sin cuota gratis, prueba el siguiente
-            r = self.http.post(URL.format(modelo), json=cuerpo, timeout=60,
-                               headers={"x-goog-api-key": config.GEMINI_API_KEY})
-            if r.status_code in (429, 404, 503):
-                ultimo_error = f"{modelo}: {r.status_code}"
-                continue
-            if not r.ok:
+            for _ in range(2):
+                r = self.http.post(URL.format(modelo), json=self._cuerpo(modelo), timeout=60,
+                                   headers={"x-goog-api-key": config.GEMINI_API_KEY})
+                if r.ok:
+                    return r.json()
+                if (r.status_code == 400 and "thinking" in r.text.lower()
+                        and modelo not in self.sin_nivel_pensamiento):
+                    self.sin_nivel_pensamiento.add(modelo)   # este modelo no lo acepta: reintenta sin eso
+                    continue
+                if r.status_code in (429, 404, 503):
+                    ultimo_error = f"{modelo}: {r.status_code}"
+                    break
                 raise RuntimeError(f"Gemini {r.status_code}: {r.text[:300]}")
-            return r.json()
         raise SinCuota(ultimo_error)
 
     def pensar(self, pedido: str) -> str:

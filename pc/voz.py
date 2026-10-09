@@ -47,12 +47,22 @@ class Boca:
             self._pygame.mixer.music.stop()
 
     def _decir_neural(self, texto):
+        import hashlib
         import edge_tts
         if not self._pygame:
             raise RuntimeError("sin pygame")
-        mp3 = Path(tempfile.gettempdir()) / f"{config.NOMBRE.lower()}_voz.mp3"
-        com = edge_tts.Communicate(texto, config.VOZ, rate=config.VELOCIDAD_VOZ)
-        asyncio.run(com.save(str(mp3)))
+        if len(texto) <= 40:   # frases cortas y repetidas ("¿Sí?", "Listo"): se generan una vez y quedan guardadas
+            cache = config.DATOS / "voz_cache"
+            cache.mkdir(exist_ok=True)
+            clave = hashlib.md5(f"{config.VOZ}|{config.VELOCIDAD_VOZ}|{texto}".encode()).hexdigest()
+            mp3 = cache / f"{clave}.mp3"
+        else:
+            mp3 = Path(tempfile.gettempdir()) / f"{config.NOMBRE.lower()}_voz.mp3"
+        if not mp3.exists() or mp3.parent == Path(tempfile.gettempdir()):
+            com = edge_tts.Communicate(texto, config.VOZ, rate=config.VELOCIDAD_VOZ)
+            tmp = mp3.with_suffix(".tmp")
+            asyncio.run(com.save(str(tmp)))
+            tmp.replace(mp3)   # recién ahora queda guardado, así nunca se cachea un audio a medias
         m = self._pygame.mixer.music
         m.load(str(mp3))
         m.play()
