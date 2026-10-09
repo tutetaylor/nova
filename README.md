@@ -1,6 +1,6 @@
 # Nova — tu asistente de voz personal
 
-Dos asistentes que comparten personalidad y cerebro (Claude):
+Dos asistentes que comparten personalidad y cerebro: **Gemini, con la capa gratuita de Google. Todo el proyecto es 100% gratis.**
 
 | | **Nova para PC** (`pc/`) | **Nova para Android** (`android/`) |
 |---|---|---|
@@ -14,11 +14,20 @@ Funcionan separados: el de Android anda en cualquier lugar, sin la PC.
 
 ---
 
-## 1. Conseguí la clave de Claude
+## 1. Conseguí tu clave gratis de Gemini
 
-1. Entrá a https://console.anthropic.com → **API Keys** → **Create Key**.
-2. Cargá algo de crédito en **Billing**. Uso normal de un asistente: pocos dólares por mes.
-3. Guardá la clave (`sk-ant-...`). No la subas a GitHub.
+1. Entrá a https://aistudio.google.com/apikey con tu cuenta de Google.
+2. Tocá **Create API key**. No pide tarjeta.
+3. Guardá la clave (empieza con `AIza...`). No la subas a GitHub.
+
+**Cómo se mantiene gratis:**
+- No actives la facturación (*billing*) en ese proyecto de Google. Sin facturación, Google nunca te cobra:
+  cuando se termina la cuota gratis, simplemente responde "sin cuota" hasta que se renueva.
+- Si el modelo principal se queda sin cuota, Nova prueba solo con otros modelos gratis (`MODELOS_RESPALDO`).
+- El **límite por hora** (`LIMITE_POR_HORA`, por defecto 60) reparte la cuota para que no la gastes toda de golpe.
+  Preguntale *"¿cuánto uso me queda?"* y te contesta sin gastar nada.
+- La cuota exacta de cada modelo la ves en https://aistudio.google.com/rate-limit.
+- En la capa gratis, Google puede usar lo que le mandás para mejorar sus productos. No le dictes datos sensibles.
 
 ---
 
@@ -65,7 +74,7 @@ Probá: *"Nova, ¿qué clima hay mañana?"*, *"abrí Spotify"*, *"poné música"
 **Que arranque solo con Windows:** `Win+R` → `shell:startup` → creá un acceso directo a
 `.venv\Scripts\pythonw.exe main.py` con "Iniciar en" = la carpeta `pc`.
 
-**Agregar habilidades:** en `herramientas.py`, escribí una función con `@herramienta(...)`. Claude la descubre sola.
+**Agregar habilidades:** en `herramientas.py`, escribí una función con `@herramienta(...)`. El cerebro la descubre sola.
 
 ---
 
@@ -127,14 +136,14 @@ toca, escribe y repite hasta terminar.
 ## Cómo está hecho
 
 ```
-voz ──► [palabra "Nova"] ──► reconocimiento ──► Claude (+ herramientas) ──► voz
+voz ──► [palabra "Nova"] ──► reconocimiento ──► Gemini (+ herramientas) ──► voz
                                                    │
                          PC: herramientas.py  ◄────┤
                     Android: Herramientas.kt  ◄────┘──► ControlAccesibilidad.kt (ve y toca la pantalla)
 ```
 
-- `pc/main.py` loop principal · `voz.py` oído y boca · `cerebro.py` Claude · `herramientas.py` acciones
-- `android/.../AsistenteService.kt` escucha y habla · `Cerebro.kt` Claude · `Herramientas.kt` acciones ·
+- `pc/main.py` loop principal · `voz.py` oído y boca · `cerebro.py` Gemini · `herramientas.py` acciones
+- `android/.../AsistenteService.kt` escucha y habla · `Cerebro.kt` Gemini · `Herramientas.kt` acciones ·
   `ControlAccesibilidad.kt` control de pantalla · `MainActivity.kt` configuración
 
-El modelo por defecto es `claude-sonnet-5-5` (rápido y preciso). Lo podés cambiar en `.env` o en la app.
+El modelo por defecto es `gemini-3.8-flash`. Lo podés cambiar en `.env` o en la app.
