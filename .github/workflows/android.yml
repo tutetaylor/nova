@@ -26,7 +26,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon -PnumeroVersion=${{ github.run_number }}
           cp app/build/outputs/apk/debug/app-debug.apk ../Nova.apk
 
       - name: Publicar en Releases (descarga directa desde el celular)
@@ -36,4 +36,4 @@ jobs:
           gh release delete ultima --yes --cleanup-tag || true
           gh release create ultima Nova.apk \
             --title "Nova - última versión" \
-            --notes "Compilada desde ${GITHUB_SHA::7}. En el celular: tocá Nova.apk para descargar e instalar."
+            --notes "Versión 1.${{ github.run_number }}, compilada desde ${GITHUB_SHA::7}. En el celular: tocá Nova.apk para descargar e instalar."
