@@ -33,7 +33,7 @@ import java.util.Locale
  * Corre siempre en primer plano:
  *  ESPERA    -> escucha en loop buscando el nombre ("Nova")
  *  ESCUCHA   -> graba el pedido completo
- *  PENSANDO  -> Claude decide y usa herramientas
+ *  PENSANDO  -> Gemini decide y usa herramientas
  *  HABLANDO  -> responde con voz; si terminó con pregunta vuelve a ESCUCHA, si no a ESPERA
  */
 class AsistenteService : Service(), TextToSpeech.OnInitListener {
@@ -231,6 +231,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         estado = Estado.PENSANDO
         alCambiarEstado?.invoke("Vos: $pedido")
         val p = normalizar(pedido).trim(' ', '.', '!', '?')
+        if ("cuanto uso" in p || "limite de uso" in p) { decir(cerebro.resumenUso(), false); return }  // gratis
         when (p) {
             "nada", "chau", "gracias", "listo", "cancelar", "eso es todo" -> { decir("Dale, cualquier cosa me llamás.", false); return }
             "olvida todo", "nueva conversacion", "empecemos de nuevo" -> { cerebro.olvidar(); decir("Listo, empezamos de cero.", false); return }

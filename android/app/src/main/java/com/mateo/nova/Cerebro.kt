@@ -8,13 +8,18 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/** Habla con Claude y ejecuta las herramientas que pida, en un loop, hasta tener la respuesta final. */
+/** Habla con Gemini (capa gratuita de Google) y ejecuta las herramientas que pida, en un loop. */
 class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) {
+
+    private class SinCuota : Exception()
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS).build()
     private val historial = mutableListOf<JSONObject>()
     var alUsarHerramienta: ((String) -> Unit)? = null
+
+    /** Si el modelo principal se queda sin cuota gratis, prueba estos en orden. */
+    private val respaldo = listOf("gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
 
     private fun personalidad() = """
         Sos ${prefs.nombre}, el asistente de voz personal de ${prefs.usuario}, que vive en ${prefs.ciudad}.
@@ -38,32 +43,98 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
         - Para fechas relativas ("mañana a las 9") consultá primero fecha_hora.
     """.trimIndent()
 
+    /** Las herramientas en el formato de Gemini (functionDeclarations). */
+    private val herramientasGemini: JSONArray by lazy {
+        val decl = JSONArray()
+        val e = herramientas.esquemas
+        for (i in 0 until e.length()) {
+            val h = e.getJSONObject(i)
+            val d = JSONObject().put("name", h.getString("name")).put("description", h.getString("description"))
+            val schema = h.getJSONObject("input_schema")
+            if (schema.getJSONObject("properties").length() > 0) d.put("parameters", schema)
+            decl.put(d)
+        }
+        JSONArray().put(JSONObject().put("functionDeclarations", decl))
+    }
+
     fun olvidar() = historial.clear()
 
+    // ---------------------------------------------------------------- LÍMITE POR HORA
+    private fun marcas(): MutableList<Long> {
+        val haceUnaHora = System.currentTimeMillis() - 3_600_000
+        return prefs.marcasUso.split(",").mapNotNull { it.toLongOrNull() }.filter { it > haceUnaHora }.toMutableList()
+    }
+
+    private fun disponibles(): Int =
+        if (prefs.limitePorHora <= 0) Int.MAX_VALUE else prefs.limitePorHora - marcas().size
+
+    private fun registrarUso() {
+        val m = marcas().apply { add(System.currentTimeMillis()) }
+        prefs.marcasUso = m.joinToString(",")
+    }
+
+    private fun minutosParaLiberar(): Long {
+        val primera = marcas().minOrNull() ?: return 0
+        return ((primera + 3_600_000 - System.currentTimeMillis()) / 60_000 + 1).coerceAtLeast(1)
+    }
+
+    fun resumenUso(): String =
+        if (prefs.limitePorHora <= 0) "No tengo límite propio por hora, solo el de la capa gratis de Google."
+        else "Usé ${marcas().size} de ${prefs.limitePorHora} consultas en la última hora."
+
+    // ---------------------------------------------------------------- PENSAR
     /** Bloqueante: llamar desde un hilo de fondo. */
     fun pensar(pedido: String): String {
-        if (prefs.apiKey.isBlank()) return "Me falta la clave de la API. Cargala en la app de ${prefs.nombre}."
-        historial.add(JSONObject().put("role", "user").put("content", pedido))
-        var texto = ""
-        for (ronda in 0 until 30) {   // varias rondas: manejar una app puede llevar muchos pasos
-            val resp = llamarApi()
-            val contenido = resp.getJSONArray("content")
-            historial.add(JSONObject().put("role", "assistant").put("content", contenido))
-            texto = (0 until contenido.length()).map { contenido.getJSONObject(it) }
-                .filter { it.getString("type") == "text" }.joinToString(" ") { it.getString("text") }.trim()
-            if (resp.optString("stop_reason") != "tool_use") break
+        if (prefs.apiKey.isBlank()) return "Me falta la clave gratis de Gemini. Cargala en la app de ${prefs.nombre}."
+        if (disponibles() <= 0)
+            return "Llegué al límite de uso de esta hora. Vuelvo a estar disponible en ${minutosParaLiberar()} minutos."
+        val inicio = historial.size
+        fun deshacer() { while (historial.size > inicio) historial.removeAt(historial.size - 1) }
 
-            val resultados = JSONArray()
-            for (i in 0 until contenido.length()) {
-                val b = contenido.getJSONObject(i)
-                if (b.getString("type") != "tool_use") continue
-                val nombre = b.getString("name")
-                alUsarHerramienta?.invoke(nombre)
-                val salida = herramientas.ejecutar(nombre, b.optJSONObject("input") ?: JSONObject())
-                resultados.put(JSONObject().put("type", "tool_result")
-                    .put("tool_use_id", b.getString("id")).put("content", salida))
+        historial.add(JSONObject().put("role", "user")
+            .put("parts", JSONArray().put(JSONObject().put("text", pedido))))
+        var texto = ""
+        try {
+            for (ronda in 0 until 30) {   // varias rondas: manejar una app puede llevar muchos pasos
+                if (disponibles() <= 0) {
+                    deshacer()
+                    return "Llegué al límite de uso de esta hora a mitad de la tarea, así que la dejé ahí. " +
+                        "En ${minutosParaLiberar()} minutos la retomamos."
+                }
+                registrarUso()
+                val resp = llamarApi()
+                val contenido = resp.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")
+                    ?: JSONObject()
+                contenido.put("role", "model")
+                val partes = contenido.optJSONArray("parts") ?: JSONArray().also { contenido.put("parts", it) }
+                historial.add(contenido)   // tal cual, para conservar las firmas de razonamiento
+
+                val textos = mutableListOf<String>()
+                val llamadas = mutableListOf<JSONObject>()
+                for (i in 0 until partes.length()) {
+                    val p = partes.getJSONObject(i)
+                    if (p.has("text") && !p.optBoolean("thought")) textos.add(p.getString("text"))
+                    p.optJSONObject("functionCall")?.let { llamadas.add(it) }
+                }
+                texto = textos.joinToString(" ").trim()
+                if (llamadas.isEmpty()) break
+
+                val respuestas = JSONArray()
+                for (ll in llamadas) {
+                    val nombre = ll.getString("name")
+                    alUsarHerramienta?.invoke(nombre)
+                    val salida = herramientas.ejecutar(nombre, ll.optJSONObject("args") ?: JSONObject())
+                    respuestas.put(JSONObject().put("functionResponse", JSONObject()
+                        .put("name", nombre).put("response", JSONObject().put("resultado", salida))))
+                }
+                historial.add(JSONObject().put("role", "user").put("parts", respuestas))
             }
-            historial.add(JSONObject().put("role", "user").put("content", resultados))
+        } catch (e: SinCuota) {
+            deshacer()
+            return "Se me terminó la cuota gratis de Google por ahora. Probá de nuevo en un rato."
+        } catch (e: Exception) {
+            deshacer()
+            throw e
         }
         recortar()
         return texto.ifBlank { "Listo." }
@@ -71,41 +142,41 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
 
     private fun llamarApi(): JSONObject {
         val cuerpo = JSONObject()
-            .put("model", prefs.modelo)
-            .put("max_tokens", 1024)
-            .put("system", personalidad())
-            .put("tools", herramientas.esquemas)
-            .put("messages", JSONArray(historial))
-        val req = Request.Builder().url("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", prefs.apiKey)
-            .header("anthropic-version", "2023-06-01")
-            .post(cuerpo.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-        http.newCall(req).execute().use { r ->
-            val txt = r.body?.string().orEmpty()
-            if (!r.isSuccessful) {
-                // Si falla, sacamos el pedido para no dejar la charla en un estado inválido
-                historial.clear()
-                throw IllegalStateException("API ${r.code}: ${txt.take(300)}")
+            .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", personalidad()))))
+            .put("contents", JSONArray(historial))
+            .put("tools", herramientasGemini)
+            .put("generationConfig", JSONObject().put("maxOutputTokens", 1024))
+            .toString()
+        for (modelo in (listOf(prefs.modelo) + respaldo).distinct()) {
+            val req = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent")
+                .header("x-goog-api-key", prefs.apiKey)
+                .post(cuerpo.toRequestBody("application/json".toMediaType()))
+                .build()
+            http.newCall(req).execute().use { r ->
+                val txt = r.body?.string().orEmpty()
+                if (r.code == 429 || r.code == 404 || r.code == 503) return@use   // probar el siguiente modelo
+                if (!r.isSuccessful) throw IllegalStateException("Gemini ${r.code}: ${txt.take(300)}")
+                return JSONObject(txt)
             }
-            return JSONObject(txt)
         }
+        throw SinCuota()
     }
 
-    /** Mantiene la charla corta sin separar una herramienta de su resultado.
-     *  Las lecturas de pantalla viejas se resumen para no gastar tokens. */
+    /** Mantiene la charla corta y resume las lecturas de pantalla viejas para gastar menos cuota. */
     private fun recortar() {
+        fun esPedidoDeTexto(m: JSONObject) = m.getString("role") == "user" &&
+            m.getJSONArray("parts").optJSONObject(0)?.has("text") == true
         while (historial.size > 24) {
             historial.removeAt(0)
-            while (historial.isNotEmpty() && !(historial[0].getString("role") == "user" &&
-                        historial[0].opt("content") is String)) historial.removeAt(0)
+            while (historial.isNotEmpty() && !esPedidoDeTexto(historial[0])) historial.removeAt(0)
         }
         for (m in historial.dropLast(2)) {
-            val c = m.opt("content") as? JSONArray ?: continue
-            for (i in 0 until c.length()) {
-                val b = c.getJSONObject(i)
-                if (b.optString("type") == "tool_result" && b.optString("content").length > 600)
-                    b.put("content", b.getString("content").take(300) + " …(lectura vieja recortada)")
+            val partes = m.optJSONArray("parts") ?: continue
+            for (i in 0 until partes.length()) {
+                val r = partes.getJSONObject(i).optJSONObject("functionResponse")?.optJSONObject("response") ?: continue
+                val s = r.optString("resultado")
+                if (s.length > 600) r.put("resultado", s.take(300) + " …(lectura vieja recortada)")
             }
         }
     }

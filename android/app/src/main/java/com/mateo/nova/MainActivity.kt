@@ -50,16 +50,19 @@ class MainActivity : AppCompatActivity() {
         fun boton(t: String, accion: () -> Unit) = Button(this).apply { text = t; setOnClickListener { accion() }; col.addView(this) }
 
         titulo("1. Personalizá tu asistente")
-        val key = campo("Clave de la API de Anthropic (sk-ant-…)", prefs.apiKey, secreto = true)
+        val key = campo("Clave GRATIS de Gemini (AIza…) — aistudio.google.com/apikey", prefs.apiKey, secreto = true)
         val nombre = campo("Nombre / palabra de activación", prefs.nombre)
         val usuario = campo("Tu nombre", prefs.usuario)
         val ciudad = campo("Tu ciudad", prefs.ciudad)
         val modelo = campo("Modelo", prefs.modelo)
+        val limite = campo("Límite de consultas por hora (0 = sin límite)", prefs.limitePorHora.toString())
+            .apply { inputType = InputType.TYPE_CLASS_NUMBER }
         val pitidos = CheckBox(this).apply { text = "Silenciar el bip del micrófono en modo espera"; isChecked = prefs.silenciarPitidos; col.addView(this) }
         boton("Guardar") {
             prefs.apiKey = key.text.toString(); prefs.nombre = nombre.text.toString()
             prefs.usuario = usuario.text.toString(); prefs.ciudad = ciudad.text.toString()
             prefs.modelo = modelo.text.toString(); prefs.silenciarPitidos = pitidos.isChecked
+            prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 60
             title = prefs.nombre
             mostrar("Guardado. Reiniciá el asistente para aplicar el nombre nuevo.")
         }
@@ -105,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         if (AsistenteService.corriendo) {
             startService(i.setAction(AsistenteService.ACCION_DETENER))
         } else {
-            if (prefs.apiKey.isBlank()) { mostrar("Primero cargá y guardá la clave de la API."); return }
+            if (prefs.apiKey.isBlank()) { mostrar("Primero cargá y guardá tu clave gratis de Gemini (aistudio.google.com/apikey)."); return }
             if (!tiene(Manifest.permission.RECORD_AUDIO)) { mostrar("Falta el permiso de micrófono."); return }
             ContextCompat.startForegroundService(this, i)
         }

@@ -28,7 +28,7 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
- * Todo lo que Nova puede hacer en el celular. Cada herramienta tiene un esquema (para que Claude
+ * Todo lo que Nova puede hacer en el celular. Cada herramienta tiene un esquema (para que el cerebro
  * sepa que existe) y una implementación en [ejecutar].
  */
 class Herramientas(private val ctx: Context, private val prefs: Prefs) {

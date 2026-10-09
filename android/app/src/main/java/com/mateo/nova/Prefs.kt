@@ -20,11 +20,19 @@ class Prefs(ctx: Context) {
         get() = sp.getString("ciudad", "Buenos Aires") ?: "Buenos Aires"
         set(v) = sp.edit().putString("ciudad", v.trim()).apply()
     var modelo: String
-        get() = sp.getString("modelo", "claude-sonnet-5-5") ?: "claude-sonnet-5-5"
-        set(v) = sp.edit().putString("modelo", v.trim().ifEmpty { "claude-sonnet-5-5" }).apply()
+        get() = sp.getString("modelo", "gemini-3.8-flash") ?: "gemini-3.8-flash"
+        set(v) = sp.edit().putString("modelo", v.trim().ifEmpty { "gemini-3.8-flash" }).apply()
     var codigoPais: String
         get() = sp.getString("codigo_pais", "54") ?: "54"
         set(v) = sp.edit().putString("codigo_pais", v.filter { it.isDigit() }.ifEmpty { "54" }).apply()
+    /** Consultas permitidas por hora. 0 = sin límite. */
+    var limitePorHora: Int
+        get() = sp.getInt("limite_hora", 60)
+        set(v) = sp.edit().putInt("limite_hora", v.coerceAtLeast(0)).apply()
+    /** Momentos (ms) de las llamadas de la última hora, separados por coma. */
+    var marcasUso: String
+        get() = sp.getString("marcas_uso", "") ?: ""
+        set(v) = sp.edit().putString("marcas_uso", v).apply()
     var silenciarPitidos: Boolean
         get() = sp.getBoolean("silenciar_pitidos", true)
         set(v) = sp.edit().putBoolean("silenciar_pitidos", v).apply()
