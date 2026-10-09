@@ -15,20 +15,22 @@ ARCHIVO_ENV = BASE / ".env"
 def _primer_inicio():
     """La primera vez pregunta lo básico y crea el .env, así el .exe funciona sin tocar archivos."""
     print("=" * 60 + "\n  Bienvenido a Nova. Configuración inicial (una sola vez)\n" + "=" * 60)
+    print("Necesitás una clave GRATIS de Google: entrá a https://aistudio.google.com/apikey y tocá 'Create API key'.")
     clave = ""
-    while not clave.startswith("sk-ant-"):
-        clave = input("Pegá tu clave de la API de Anthropic (sk-ant-...): ").strip()
+    while len(clave) < 20:
+        clave = input("Pegá tu clave de Gemini (empieza con AIza...): ").strip()
     nombre = input("¿Cómo querés que se llame tu asistente? [Nova]: ").strip() or "Nova"
     usuario = input("¿Cómo te llamás? [Mateo]: ").strip() or "Mateo"
     ciudad = input("¿En qué ciudad estás? [Buenos Aires]: ").strip() or "Buenos Aires"
     ARCHIVO_ENV.write_text(
-        f"ANTHROPIC_API_KEY={clave}\nNOMBRE={nombre}\nUSUARIO={usuario}\nCIUDAD={ciudad}\n"
-        "VOZ=es-AR-ElenaNeural\nVELOCIDAD_VOZ=+8%\nMODELO=claude-sonnet-5-5\nSEGUIR_CHARLANDO=1\n",
+        f"GEMINI_API_KEY={clave}\nNOMBRE={nombre}\nUSUARIO={usuario}\nCIUDAD={ciudad}\n"
+        "VOZ=es-AR-ElenaNeural\nVELOCIDAD_VOZ=+8%\nMODELO=gemini-3.8-flash\nSEGUIR_CHARLANDO=1\n"
+        "LIMITE_POR_HORA=60\n",
         encoding="utf-8")
     print(f"\nListo. Podés cambiar todo después en {ARCHIVO_ENV}\n")
 
 
-if not ARCHIVO_ENV.exists() and not os.getenv("ANTHROPIC_API_KEY") and sys.stdin and sys.stdin.isatty():
+if not ARCHIVO_ENV.exists() and not os.getenv("GEMINI_API_KEY") and sys.stdin and sys.stdin.isatty():
     _primer_inicio()
 load_dotenv(ARCHIVO_ENV)
 
@@ -37,9 +39,13 @@ NOMBRE = os.getenv("NOMBRE", "Nova")                 # palabra de activación y 
 USUARIO = os.getenv("USUARIO", "Mateo")
 CIUDAD = os.getenv("CIUDAD", "Buenos Aires")
 
-# --- Cerebro (Claude) ---
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-MODELO = os.getenv("MODELO", "claude-sonnet-5-5")
+# --- Cerebro (Gemini, capa gratuita) ---
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+MODELO = os.getenv("MODELO", "gemini-3.8-flash")
+# Si el modelo principal se queda sin cuota gratis, prueba estos en orden
+MODELOS_RESPALDO = [m.strip() for m in os.getenv(
+    "MODELOS_RESPALDO", "gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",") if m.strip()]
+LIMITE_POR_HORA = int(os.getenv("LIMITE_POR_HORA", "60"))  # consultas por hora; 0 = sin límite propio
 MAX_HISTORIAL = int(os.getenv("MAX_HISTORIAL", "20"))  # mensajes que recuerda dentro de la charla
 
 # --- Voz ---

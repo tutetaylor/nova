@@ -1,5 +1,8 @@
-"""El cerebro: Claude decide qué responder y qué herramientas usar."""
-import anthropic
+"""El cerebro: Gemini (capa gratuita de Google) decide qué responder y qué herramientas usar."""
+import json
+import time
+
+import requests
 
 import config
 import herramientas
@@ -19,40 +22,132 @@ Reglas de acción:
 - Si no entendiste el pedido, preguntá breve.
 """
 
+URL = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent"
+
+
+class SinCuota(Exception):
+    pass
+
+
+class Limitador:
+    """Cuenta las llamadas de la última hora (se guarda en disco). Protege la cuota gratis."""
+
+    def __init__(self, maximo, archivo):
+        self.maximo, self.archivo = maximo, archivo
+        try:
+            self.marcas = json.loads(archivo.read_text())
+        except Exception:
+            self.marcas = []
+
+    def _limpiar(self):
+        hace_una_hora = time.time() - 3600
+        self.marcas = [m for m in self.marcas if m > hace_una_hora]
+
+    def disponibles(self):
+        if self.maximo <= 0:          # 0 = sin límite propio (solo el de Google)
+            return 10**9
+        self._limpiar()
+        return self.maximo - len(self.marcas)
+
+    def registrar(self):
+        self.marcas.append(time.time())
+        self._limpiar()
+        self.archivo.write_text(json.dumps(self.marcas))
+
+    def minutos_para_liberar(self):
+        self._limpiar()
+        if not self.marcas:
+            return 0
+        return max(1, int((self.marcas[0] + 3600 - time.time()) / 60) + 1)
+
+    def resumen(self):
+        if self.maximo <= 0:
+            return "No tengo límite propio por hora; solo el de la capa gratis de Google."
+        return f"Usé {len(self.marcas)} de {self.maximo} consultas en la última hora."
+
+
+def _declaraciones():
+    """Convierte las herramientas al formato de Gemini."""
+    decl = []
+    for e in herramientas.esquemas():
+        d = {"name": e["name"], "description": e["description"]}
+        if e["input_schema"]["properties"]:
+            d["parameters"] = e["input_schema"]
+        decl.append(d)
+    return [{"functionDeclarations": decl}]
+
 
 class Cerebro:
     def __init__(self):
-        if not config.ANTHROPIC_API_KEY:
-            raise SystemExit("Falta ANTHROPIC_API_KEY en el archivo .env")
-        self.cliente = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        if not config.GEMINI_API_KEY:
+            raise SystemExit("Falta GEMINI_API_KEY en el archivo .env (es gratis en aistudio.google.com)")
         self.historial = []
+        self.limite = Limitador(config.LIMITE_POR_HORA, config.DATOS / "uso.json")
+        self.modelos = [config.MODELO] + [m for m in config.MODELOS_RESPALDO if m != config.MODELO]
+        self.http = requests.Session()
 
     def olvidar(self):
         self.historial = []
 
+    def _llamar(self):
+        cuerpo = {"systemInstruction": {"parts": [{"text": PERSONALIDAD}]},
+                  "contents": self.historial, "tools": _declaraciones(),
+                  "generationConfig": {"maxOutputTokens": 1024}}
+        ultimo_error = ""
+        for modelo in self.modelos:              # si uno se quedó sin cuota gratis, prueba el siguiente
+            r = self.http.post(URL.format(modelo), json=cuerpo, timeout=60,
+                               headers={"x-goog-api-key": config.GEMINI_API_KEY})
+            if r.status_code in (429, 404, 503):
+                ultimo_error = f"{modelo}: {r.status_code}"
+                continue
+            if not r.ok:
+                raise RuntimeError(f"Gemini {r.status_code}: {r.text[:300]}")
+            return r.json()
+        raise SinCuota(ultimo_error)
+
     def pensar(self, pedido: str) -> str:
-        self.historial.append({"role": "user", "content": pedido})
-        for _ in range(10):  # hasta 10 rondas de herramientas por pedido
-            resp = self.cliente.messages.create(
-                model=config.MODELO, max_tokens=1024, system=PERSONALIDAD,
-                tools=herramientas.esquemas(), messages=self.historial)
-            self.historial.append({"role": "assistant", "content": resp.content})
-            if resp.stop_reason != "tool_use":
-                break
-            resultados = []
-            for bloque in resp.content:
-                if bloque.type == "tool_use":
-                    print(f"   ⚙️  {bloque.name}({bloque.input})")
-                    salida = herramientas.ejecutar(bloque.name, bloque.input)
-                    resultados.append({"type": "tool_result", "tool_use_id": bloque.id, "content": salida})
-            self.historial.append({"role": "user", "content": resultados})
+        if self.limite.disponibles() <= 0:
+            return (f"Llegué al límite de uso de esta hora. "
+                    f"Vuelvo a estar disponible en {self.limite.minutos_para_liberar()} minutos.")
+        inicio = len(self.historial)
+        self.historial.append({"role": "user", "parts": [{"text": pedido}]})
+        texto = ""
+        try:
+            for _ in range(10):  # hasta 10 rondas de herramientas por pedido
+                if self.limite.disponibles() <= 0:
+                    del self.historial[inicio:]
+                    return ("Llegué al límite de uso de esta hora a mitad de la tarea, así que la dejé ahí. "
+                            f"En {self.limite.minutos_para_liberar()} minutos la retomamos.")
+                self.limite.registrar()
+                resp = self._llamar()
+                candidato = (resp.get("candidates") or [{}])[0]
+                contenido = candidato.get("content") or {"role": "model", "parts": []}
+                contenido["role"] = "model"
+                partes = contenido.setdefault("parts", [])
+                self.historial.append(contenido)       # se guarda tal cual (incluye firmas de razonamiento)
+                texto = " ".join(p["text"] for p in partes if "text" in p and not p.get("thought")).strip()
+                llamadas = [p["functionCall"] for p in partes if "functionCall" in p]
+                if not llamadas:
+                    break
+                respuestas = []
+                for ll in llamadas:
+                    print(f"   ⚙️  {ll['name']}({ll.get('args', {})})")
+                    salida = herramientas.ejecutar(ll["name"], ll.get("args") or {})
+                    respuestas.append({"functionResponse": {"name": ll["name"], "response": {"resultado": salida}}})
+                self.historial.append({"role": "user", "parts": respuestas})
+        except SinCuota:
+            del self.historial[inicio:]
+            return "Se me terminó la cuota gratis de Google por ahora. Probá de nuevo en un rato."
+        except Exception:
+            del self.historial[inicio:]
+            raise
         self._recortar()
-        return " ".join(b.text for b in resp.content if b.type == "text").strip()
+        return texto or "Listo."
 
     def _recortar(self):
-        """Mantiene la charla corta sin cortar a la mitad un par herramienta/resultado."""
+        """Mantiene la charla corta, empezando siempre en un pedido de texto del usuario."""
         while len(self.historial) > config.MAX_HISTORIAL:
             self.historial.pop(0)
             while self.historial and not (self.historial[0]["role"] == "user"
-                                          and isinstance(self.historial[0]["content"], str)):
+                                          and "text" in self.historial[0]["parts"][0]):
                 self.historial.pop(0)

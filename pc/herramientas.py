@@ -1,7 +1,7 @@
 """Las manos del asistente: todo lo que puede hacer en la PC.
 
 Para agregar una habilidad nueva, escribí una función con el decorador @herramienta.
-Claude la ve automáticamente y decide cuándo usarla.
+El cerebro la ve automáticamente y decide cuándo usarla.
 """
 import datetime as dt
 import json

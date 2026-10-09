@@ -20,6 +20,9 @@ def atender(cerebro, boca, pedido):
     if p in PARA_CORTAR:
         boca.decir("Dale, cualquier cosa me llamás.")
         return False
+    if "cuanto uso" in p or "limite de uso" in p:      # se responde gratis, sin gastar cuota
+        boca.decir(cerebro.limite.resumen())
+        return False
     if p in PARA_OLVIDAR:
         cerebro.olvidar()
         boca.decir("Listo, empezamos de cero.")
