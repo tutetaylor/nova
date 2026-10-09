@@ -22,7 +22,24 @@ Funcionan separados: el de Android anda en cualquier lugar, sin la PC.
 
 ---
 
-## 2. Nova para PC
+## 0. La forma fácil: GitHub compila todo por vos
+
+Subí esta carpeta a un repo de GitHub (privado). Con cada cambio, **Actions** arma solo:
+
+- **`Nova.exe`** para Windows → en Releases, "Nova para PC". Doble clic y listo, sin instalar Python.
+  La primera vez te pide la clave, el nombre y la ciudad, y baja el modelo de voz. Tu configuración,
+  notas y recordatorios quedan en `C:\Users\<vos>\Nova\`.
+- **`Nova.apk`** para Android → en Releases, "Nova - última versión". Abrilo desde el celular e instalalo.
+
+Si Windows muestra "Windows protegió su PC": **Más información → Ejecutar de todas formas** (pasa con
+cualquier programa propio sin firma digital). Para que arranque con Windows: `Win+R` → `shell:startup`
+→ pegá ahí un acceso directo a `Nova.exe`. Para el modo texto: abrí una terminal y corré `Nova.exe --texto`.
+
+Si preferís correrlo desde el código, seguí con las secciones de abajo.
+
+---
+
+## 2. Nova para PC (desde el código)
 
 Requisitos: Python 3.10+ y micrófono.
 
