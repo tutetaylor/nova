@@ -59,6 +59,7 @@ IDIOMA_STT = os.getenv("IDIOMA_STT", "es-AR")
 # --- Palabra de activación (offline con Vosk) ---
 VOSK_MODELO = Path(os.getenv("VOSK_MODELO", BASE / "modelos" / "vosk-model-small-es-0.42"))
 SEGUNDOS_ESCUCHA = float(os.getenv("SEGUNDOS_ESCUCHA", "8"))     # máximo para dictar un pedido
+CONFIRMAR = os.getenv("CONFIRMAR", "1") == "1"   # pedir permiso antes de mandar mensajes, publicar, apagar
 SEGURIDAD_ACTIVACION = float(os.getenv("SEGURIDAD_ACTIVACION", "0.85"))  # más alto = menos activaciones falsas
 SEGUIR_CHARLANDO = os.getenv("SEGUIR_CHARLANDO", "1") == "1"      # si pregunta algo, escucha sin wake word
 
@@ -72,7 +73,7 @@ CARPETA_CAPTURAS = Path(os.getenv("CARPETA_CAPTURAS", Path.home() / "Pictures" /
 
 # --- Guardar desde la ventana de ajustes ---
 CAMPOS_EDITABLES = {"NOMBRE": str, "USUARIO": str, "CIUDAD": str, "GEMINI_API_KEY": str,
-                    "MODELO": str, "VOZ": str, "LIMITE_POR_HORA": int}
+                    "MODELO": str, "VOZ": str, "LIMITE_POR_HORA": int, "CONFIRMAR": str}
 
 
 def guardar(cambios: dict):
@@ -89,6 +90,12 @@ def guardar(cambios: dict):
             continue
         if clave == "NOMBRE" and not valor:
             valor = "Nova"
+        if clave == "CONFIRMAR":
+            valor = "1" if str(valor).lower() in ("1", "true", "si", "sí") else "0"
+            globals()[clave] = valor == "1"
+            os.environ[clave] = valor
+            pendientes[clave] = valor
+            continue
         globals()[clave] = valor
         os.environ[clave] = str(valor)
         pendientes[clave] = str(valor)

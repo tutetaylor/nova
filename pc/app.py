@@ -32,10 +32,14 @@ class Puente:
             "clave": config.GEMINI_API_KEY, "limite": config.LIMITE_POR_HORA, "modelo": config.MODELO,
             "usadas": usadas, "vozOffline": Path(config.VOSK_MODELO).exists(),
             "estado": n.estado, "detalle": n.detalle, "conversacion": n.conversacion,
+            "charla": n.charla, "confirmar": config.CONFIRMAR,
         }
 
     def enviar(self, texto):
         self._app.nucleo.enviar_texto(str(texto)[:2000])
+
+    def charlar(self):
+        self._app.nucleo.alternar_charla()
 
     def hablar(self):
         self._app.nucleo.hablar_ahora()

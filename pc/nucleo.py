@@ -6,6 +6,7 @@ Lo usan la ventana (app.py) y el modo consola (main.py). Los avisos van a `emiti
   parcial  {"texto": "..."}
   nivel    {"nivel": 0..1}
 """
+import random
 import threading
 import traceback
 
@@ -16,6 +17,12 @@ from voz import Boca, normalizar
 
 PARA_CORTAR = {"nada", "chau", "gracias", "listo", "eso es todo", "nada mas", "cancelar"}
 PARA_OLVIDAR = {"olvida todo", "nueva conversacion", "empecemos de nuevo"}
+PARA_CHARLAR = {"charlemos", "hablemos", "modo charla", "quiero charlar", "charlemos un rato", "hablemos un rato",
+                "quiero hablar", "quiero hablar con vos", "charlemos un poco", "hablemos un poco"}
+PARA_TERMINAR_CHARLA = PARA_CORTAR | {"terminamos", "termina la charla", "basta", "fin de la charla", "nos vemos",
+                                      "hasta luego", "me voy", "despues seguimos"}
+APERTURAS = ["¡Dale, charlemos! ¿Cómo venís hoy, {u}?", "¡Me encanta! Contame, ¿qué estuviste haciendo hoy?",
+             "¡De una! ¿De qué tenés ganas de hablar, {u}?", "Acá estoy. ¿Cómo te trató el día?"]
 
 HERRAMIENTAS_LEGIBLES = {
     "clima": "Mirando el clima…", "buscar_info": "Buscando en internet…", "abrir_web": "Abriendo el navegador…",
@@ -39,6 +46,8 @@ class Nucleo:
         self._detener = threading.Event()      # apagaron el asistente
         self._hilo = None
         self._por_toque = False                # si se activó tocando la estrella, no hace falta decir "¿Sí?"
+        self.charla = False                    # modo charla: conversación continua, sin decir el nombre
+        self._abrir_charla = False             # al entrar tocando el botón, Nova saluda primero
         herramientas.avisar = self._recordatorio
         herramientas.iniciar_recordatorios()
         self._preparar_cerebro()
@@ -52,6 +61,25 @@ class Nucleo:
         self.conversacion.append({"deVos": de_vos, "texto": texto})
         del self.conversacion[:-40]
         self.emitir("mensaje", {"deVos": de_vos, "texto": texto})
+
+    def _charla(self, activa):
+        self.charla = activa
+        if self.cerebro:
+            self.cerebro.charla = activa
+        self.emitir("charla", {"activa": activa})
+
+    def alternar_charla(self):
+        """Botón «Charlar» de la ventana."""
+        if self.charla:
+            self._charla(False)
+            self.boca.callar()
+            return
+        self._charla(True)
+        self._abrir_charla = True
+        self.hablar_ahora()
+
+    def _apertura(self):
+        return random.choice(APERTURAS).format(u=config.USUARIO or "")
 
     def _recordatorio(self, texto):
         self._mensaje(False, texto)
@@ -84,7 +112,14 @@ class Nucleo:
         with self._lock:
             self._mensaje(True, pedido)
             self.emitir("parcial", {"texto": ""})
-            p = normalizar(pedido).strip(" .!?¿¡")
+            p = normalizar(pedido).strip(" .!?¿¡,")
+            if self.charla and p in PARA_TERMINAR_CHARLA:
+                self._charla(False)
+                return self._responder("¡Qué linda charla! Cuando quieras seguimos.")
+            if p in PARA_CHARLAR:
+                self._charla(True)
+                self._responder(self._apertura())
+                return True
             if p in PARA_CORTAR:
                 return self._responder("Dale, cualquier cosa me llamás.")
             if p in PARA_OLVIDAR:
@@ -99,7 +134,8 @@ class Nucleo:
                 print("Atajo falló:", e)
                 rapido = None
             if rapido is not None:
-                return self._responder(rapido or "Listo.", hablar=bool(rapido))
+                self._responder(rapido or "Listo.", hablar=bool(rapido))
+                return self.charla
             if not self.cerebro:
                 return self._responder("Me falta la clave gratis de Gemini. Cargala en los ajustes, el engranaje de arriba.")
             self._estado("pensando", "Pensando…")
@@ -116,7 +152,7 @@ class Nucleo:
                 respuesta = f"Uy, tuve un problema: {str(e)[:80]}. ¿Probamos de nuevo?"
             finally:
                 herramientas.ejecutar = original
-            seguir = config.SEGUIR_CHARLANDO and respuesta.rstrip().endswith("?")
+            seguir = self.charla or (config.SEGUIR_CHARLANDO and respuesta.rstrip().endswith("?"))
             self._responder(respuesta)
             return seguir
 
@@ -130,7 +166,12 @@ class Nucleo:
 
     def enviar_texto(self, texto):
         """Pedido escrito desde la ventana. No bloquea."""
-        threading.Thread(target=self.atender, args=(texto,), daemon=True).start()
+        def correr():
+            seguir = self.atender(texto)
+            if seguir and self.charla and self.activo:   # escribiste «charlemos»: sigue por voz
+                self._por_toque = True
+                self._despertar.set()
+        threading.Thread(target=correr, daemon=True).start()
 
     # ------------------------------------------------------------ VOZ
     @property
@@ -175,14 +216,25 @@ class Nucleo:
             self._estado("espera")
             if not self.oido.esperar_activacion(self._despertar, self._detener):
                 break
-            if not self._por_toque:
+            if self._abrir_charla:            # tocaron «Charlar»: Nova arranca la conversación
+                self._abrir_charla = False
+                self._responder(self._apertura())
+            elif not self._por_toque:
                 self.boca.decir("¿Sí?")      # queda guardado, sale al instante
             self._por_toque = False
-            seguir = True
+            seguir, silencios = True, 0
             while seguir and not self._detener.is_set():
                 self._estado("escucha")
                 pedido = self.oido.escuchar_pedido(al_nivel=lambda n: self.emitir("nivel", {"nivel": n}))
                 if not pedido:
-                    break
+                    if not self.charla:
+                        break
+                    silencios += 1               # en modo charla te espera un poco antes de irse
+                    if silencios >= 3:
+                        self._charla(False)
+                        self._responder("Te dejo tranquilo. Cuando quieras seguimos charlando.")
+                        break
+                    continue
+                silencios = 0
                 seguir = self.atender(pedido)
         self._estado("apagado")
