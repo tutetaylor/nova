@@ -25,6 +25,10 @@ class Prefs(ctx: Context) {
     var codigoPais: String
         get() = sp.getString("codigo_pais", "54") ?: "54"
         set(v) = sp.edit().putString("codigo_pais", v.filter { it.isDigit() }.ifEmpty { "54" }).apply()
+    /** Si el usuario dejó a Nova encendida. Android puede reiniciar el servicio solo; esto decide si debe seguir. */
+    var quiereEncendido: Boolean
+        get() = sp.getBoolean("quiere_encendido", false)
+        set(v) = sp.edit().putBoolean("quiere_encendido", v).apply()
     /** Consultas permitidas por hora. 0 = sin límite. */
     var limitePorHora: Int
         get() = sp.getInt("limite_hora", 60)
@@ -33,6 +37,12 @@ class Prefs(ctx: Context) {
     var marcasUso: String
         get() = sp.getString("marcas_uso", "") ?: ""
         set(v) = sp.edit().putString("marcas_uso", v).apply()
+
+    /** Consultas hechas en la última hora. */
+    fun usoUltimaHora(): Int {
+        val haceUnaHora = System.currentTimeMillis() - 3_600_000
+        return marcasUso.split(",").mapNotNull { it.toLongOrNull() }.count { it > haceUnaHora }
+    }
 }
 
 fun normalizar(s: String): String =

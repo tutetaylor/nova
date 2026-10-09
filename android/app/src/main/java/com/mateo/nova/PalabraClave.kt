@@ -31,6 +31,8 @@ class PalabraClave(private val ctx: Context, private val nombre: String) {
         private const val MODELO = "vosk-model-small-es-0.42"
         private const val URL = "https://alphacephei.com/vosk/models/$MODELO.zip"
         private const val TASA = 16000f
+        /** 0..1. Más alto = menos activaciones falsas, pero hay que decir el nombre más claro. */
+        private const val MINIMA_SEGURIDAD = 0.85
     }
 
     private val carpeta = File(ctx.filesDir, "vosk")
@@ -90,22 +92,34 @@ class PalabraClave(private val ctx: Context, private val nombre: String) {
     fun escuchar(alDetectar: () -> Unit, alError: (String) -> Unit) {
         val m = modelo ?: return alError("El modelo de voz no está cargado")
         detener()
-        // Gramática cerrada: solo puede "oír" el nombre o ruido. Casi sin falsas activaciones.
-        val gramatica = JSONArray(listOf(clave, "oye $clave", "hola $clave", "che $clave", "[unk]")).toString()
+        // Gramática cerrada: solo puede "oír" el nombre o ruido ([unk]).
+        val variantes = listOf(clave, "oye $clave", "hola $clave", "che $clave")
+        val gramatica = JSONArray(variantes + "[unk]").toString()
         try {
-            val rec = Recognizer(m, TASA, gramatica)
+            val rec = Recognizer(m, TASA, gramatica).apply { setWords(true) }   // incluye la seguridad de cada palabra
             reconocedor = rec
             servicio = SpeechService(rec, TASA).also { s ->
                 s.startListening(object : RecognitionListener {
                     private var disparado = false
-                    private fun revisar(json: String?, campo: String) {
+                    /** Solo frases terminadas, que sean exactamente el nombre, y con buena seguridad. */
+                    private fun revisar(json: String?) {
                         if (disparado || json == null) return
-                        val texto = runCatching { JSONObject(json).optString(campo) }.getOrDefault("")
-                        if (texto.split(" ").any { it == clave }) { disparado = true; alDetectar() }
+                        val r = runCatching { JSONObject(json) }.getOrNull() ?: return
+                        val texto = r.optString("text").trim()
+                        if (texto !in variantes) return          // "[unk] nova [unk]" o frases largas: no
+                        val palabras = r.optJSONArray("result") ?: return
+                        var seguridad = 1.0
+                        for (i in 0 until palabras.length()) {
+                            val w = palabras.getJSONObject(i)
+                            if (w.optString("word") == clave) seguridad = w.optDouble("conf", 0.0)
+                        }
+                        if (seguridad < MINIMA_SEGURIDAD) return
+                        disparado = true
+                        alDetectar()
                     }
-                    override fun onPartialResult(h: String?) = revisar(h, "partial")
-                    override fun onResult(h: String?) = revisar(h, "text")
-                    override fun onFinalResult(h: String?) = revisar(h, "text")
+                    override fun onPartialResult(h: String?) {}
+                    override fun onResult(h: String?) = revisar(h)
+                    override fun onFinalResult(h: String?) = revisar(h)
                     override fun onError(e: Exception?) { alError(e?.message ?: "error de micrófono") }
                     override fun onTimeout() {}
                 })

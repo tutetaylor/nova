@@ -36,6 +36,7 @@ import java.util.Locale
 class AsistenteService : Service(), TextToSpeech.OnInitListener {
 
     companion object {
+        const val ACCION_ENCENDER = "com.mateo.nova.ENCENDER"
         const val ACCION_ESCUCHAR = "com.mateo.nova.ESCUCHAR"
         const val ACCION_DETENER = "com.mateo.nova.DETENER"
         const val ACCION_TEXTO = "com.mateo.nova.TEXTO"
@@ -44,8 +45,6 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         private const val TAG = "Nova"
 
         @Volatile var corriendo = false
-        /** La pantalla principal se suscribe para mostrar lo que pasa. */
-        var alCambiarEstado: ((String) -> Unit)? = null
     }
 
     private enum class Estado { ESPERA, ESCUCHA, PENSANDO, HABLANDO }
@@ -70,7 +69,10 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         val herramientas = Herramientas(this, prefs)
         comandos = Comandos(herramientas)
         cerebro = Cerebro(prefs, herramientas).apply {
-            alUsarHerramienta = { n -> main.post { notificar("Usando $n…") } }
+            alUsarHerramienta = { n ->
+                main.post { notificar("Usando $n…") }
+                Bus.estado(Bus.Estado.PENSANDO, descripcionHerramienta(n))
+            }
         }
         oido = PalabraClave(this, prefs.nombre)
         tts = TextToSpeech(this, this)
@@ -81,6 +83,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
                 startForeground(1, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
             else startForeground(1, notif)
             corriendo = true
+            Bus.estado(Bus.Estado.PREPARANDO, "Preparando la escucha…")
             prepararOido()
         } catch (e: Exception) {
             // Android 14+ no deja usar el micrófono si el servicio arranca solo desde segundo plano
@@ -90,13 +93,17 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // intent == null: Android lo reinició por su cuenta. Solo sigue si vos lo habías dejado encendido.
+        if (intent == null && !prefs.quiereEncendido) { stopSelf(); return START_NOT_STICKY }
         when (intent?.action) {
-            ACCION_DETENER -> { stopSelf(); return START_NOT_STICKY }
-            ACCION_ESCUCHAR -> main.post { if (estado != Estado.PENSANDO) { tts?.stop(); escucharPedido() } }
-            ACCION_TEXTO -> intent.getStringExtra(EXTRA_TEXTO)?.let { t -> main.post { procesar(t) } }
-            else -> main.post { if (estado == Estado.ESPERA) esperarNombre() }
+            ACCION_DETENER -> { prefs.quiereEncendido = false; stopSelf(); return START_NOT_STICKY }
+            // Todo lo que hacés vos (encender, tocar la estrella, escribir) la deja encendida
+            ACCION_ESCUCHAR -> { prefs.quiereEncendido = true; main.post { if (estado != Estado.PENSANDO) { tts?.stop(); escucharPedido() } } }
+            ACCION_TEXTO -> { prefs.quiereEncendido = true; intent.getStringExtra(EXTRA_TEXTO)?.let { t -> main.post { procesar(t) } } }
+            ACCION_ENCENDER -> { prefs.quiereEncendido = true; main.post { if (estado == Estado.ESPERA) esperarNombre() } }
+            else -> main.post { if (estado == Estado.ESPERA) esperarNombre() }   // reinicio de Android (ya verificado arriba)
         }
-        return START_STICKY
+        return if (prefs.quiereEncendido) START_STICKY else START_NOT_STICKY
     }
 
     override fun onDestroy() {
@@ -105,7 +112,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         reco?.destroy(); reco = null
         tts?.shutdown()
         scope.cancel()
-        alCambiarEstado?.invoke("Detenido")
+        Bus.estado(Bus.Estado.APAGADO)
         super.onDestroy()
     }
 
@@ -127,13 +134,17 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun decir(texto: String, seguir: Boolean) {
-        if (texto.isBlank()) { esperarNombre(); return }   // acción hecha, no hace falta hablar
+        if (texto.isBlank()) {   // acción hecha, no hace falta hablar
+            Bus.mensaje(deVos = false, texto = "Listo.")
+            esperarNombre(); return
+        }
         estado = Estado.HABLANDO
         seguirDespuesDeHablar = seguir
         frenarReconocimiento()
         oido.detener()          // que no se escuche a sí mismo
         notificar(texto)
-        alCambiarEstado?.invoke("${prefs.nombre}: $texto")
+        Bus.mensaje(deVos = false, texto = texto)
+        Bus.estado(Bus.Estado.HABLANDO)
         if (!ttsListo) { main.postDelayed({ terminoDeHablar() }, 500); return }
         tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, Bundle(), "r${System.currentTimeMillis()}")
     }
@@ -170,7 +181,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
                     if (!oido.modeloInstalado) oido.instalarModelo { pct ->
                         main.post {
                             notificar("Descargando la voz offline (solo la primera vez): $pct%")
-                            alCambiarEstado?.invoke("Descargando la voz offline: $pct%")
+                            Bus.estado(Bus.Estado.PREPARANDO, "Bajando la voz offline · $pct%")
                         }
                     }
                     oido.cargar()
@@ -180,7 +191,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             } catch (e: Exception) {
                 Log.e(TAG, "Modelo", e)
                 val msg = "No pude preparar la escucha offline (${e.message?.take(60)}). Revisá internet y reiniciá ${prefs.nombre}."
-                notificar(msg); alCambiarEstado?.invoke(msg)
+                notificar(msg); Bus.estado(Bus.Estado.PREPARANDO, msg)
             }
         }
     }
@@ -188,9 +199,11 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     /** Modo espera: escucha continua offline. No hace bip ni pausa tu música. */
     private fun esperarNombre() {
         estado = Estado.ESPERA
-        if (!oidoListo) return   // prepararOido() lo arranca cuando termine
+        if (!oidoListo) {   // prepararOido() lo arranca cuando termine
+            Bus.estado(Bus.Estado.PREPARANDO, "Preparando la escucha…"); return
+        }
         notificar("Decí \"${prefs.nombre}\" para hablarme")
-        alCambiarEstado?.invoke("Esperando \"${prefs.nombre}\"…")
+        Bus.estado(Bus.Estado.ESPERA)
         oido.escuchar(
             alDetectar = { main.post { if (estado == Estado.ESPERA) escucharPedido() } },
             alError = { msg ->
@@ -210,12 +223,13 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             esperarNombre(); return
         }
         notificar("Te escucho…")
-        alCambiarEstado?.invoke("Te escucho…")
+        Bus.estado(Bus.Estado.ESCUCHA)
         val r = nuevoReconocedor()
         r.setRecognitionListener(object : Escucha() {
             override fun onPartialResults(partialResults: Bundle?) {
-                textos(partialResults).firstOrNull()?.let { alCambiarEstado?.invoke("Vos: $it") }
+                textos(partialResults).firstOrNull()?.let { Bus.parcial(it) }
             }
+            override fun onRmsChanged(rmsdB: Float) { Bus.nivel(rmsdB) }
             override fun onResults(results: Bundle?) {
                 if (estado != Estado.ESCUCHA) return
                 val t = textos(results).firstOrNull().orEmpty()
@@ -230,20 +244,22 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     private fun procesar(pedido: String) {
         frenarReconocimiento()
         estado = Estado.PENSANDO
-        alCambiarEstado?.invoke("Vos: $pedido")
+        Bus.parcial("")
+        Bus.mensaje(deVos = true, texto = pedido)
+        Bus.estado(Bus.Estado.PENSANDO)
         val p = normalizar(pedido).trim(' ', '.', '!', '?')
         if ("cuanto uso" in p || "limite de uso" in p) { decir(cerebro.resumenUso(), false); return }  // gratis
         when (p) {
             "nada", "chau", "gracias", "listo", "cancelar", "eso es todo" -> { decir("Dale, cualquier cosa me llamás.", false); return }
             "olvida todo", "nueva conversacion", "empecemos de nuevo" -> { cerebro.olvidar(); decir("Listo, empezamos de cero.", false); return }
             "callate", "silencio", "para" -> { tts?.stop(); esperarNombre(); return }
+            "" -> { esperarNombre(); return }
         }
         scope.launch {
             // 1) Atajo instantáneo (sin internet ni cuota). 2) Si no aplica, Gemini.
             val rapido = withContext(Dispatchers.IO) { runCatching { comandos.intentar(pedido) }.getOrNull() }
             if (rapido != null) { decir(rapido, seguir = false); return@launch }
             notificar("Pensando…")
-            alCambiarEstado?.invoke("Pensando…")
             val respuesta = withContext(Dispatchers.IO) {
                 try { cerebro.pensar(pedido) }
                 catch (e: Exception) { Log.e(TAG, "Error", e); "Uy, tuve un problema: ${e.message?.take(80)}. ¿Probamos de nuevo?" }
@@ -253,6 +269,21 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     }
 
     // ------------------------------------------------------------ UTILIDADES
+    private fun descripcionHerramienta(n: String) = when (n) {
+        "leer_pantalla" -> "Mirando la pantalla…"
+        "tocar", "tocar_texto" -> "Tocando…"
+        "escribir_texto" -> "Escribiendo…"
+        "deslizar" -> "Deslizando…"
+        "abrir_app" -> "Abriendo la app…"
+        "enviar_whatsapp" -> "Mandando el WhatsApp…"
+        "enviar_sms" -> "Mandando el SMS…"
+        "llamar" -> "Llamando…"
+        "clima" -> "Mirando el clima…"
+        "buscar_contacto" -> "Buscando el contacto…"
+        "esperar" -> "Esperando que cargue…"
+        else -> "Trabajando…"
+    }
+
     private fun textos(b: Bundle?): List<String> =
         b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.filter { it.isNotBlank() } ?: emptyList()
 
@@ -275,7 +306,8 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         val detener = PendingIntent.getService(this, 2,
             Intent(this, AsistenteService::class.java).setAction(ACCION_DETENER), PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CANAL)
-            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setColor(0xFFFFD27A.toInt())
             .setContentTitle(prefs.nombre)
             .setContentText(texto)
             .setStyle(Notification.BigTextStyle().bigText(texto))
