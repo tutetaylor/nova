@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Destello de cuatro puntas: el logo de Nova -->
+    <path android:fillColor="#FFD27A"
+        android:pathData="M54,22 C56,44 64,52 86,54 C64,56 56,64 54,86 C52,64 44,56 22,54 C44,52 52,44 54,22 Z" />
+    <path android:fillColor="#FFF4D6"
+        android:pathData="M54,40 C55,50 58,53 68,54 C58,55 55,58 54,68 C53,58 50,55 40,54 C50,53 53,50 54,40 Z" />
+</vector>
