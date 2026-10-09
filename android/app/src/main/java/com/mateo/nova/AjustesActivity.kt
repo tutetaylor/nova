@@ -32,6 +32,7 @@ class AjustesActivity : AppCompatActivity() {
     private lateinit var clave: EditText
     private lateinit var limite: EditText
     private lateinit var modelo: EditText
+    private lateinit var confirmar: com.google.android.material.materialswitch.MaterialSwitch
 
     private val pedirPermisos = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         dibujarPasos()
@@ -63,6 +64,21 @@ class AjustesActivity : AppCompatActivity() {
         clave.setText(prefs.apiKey)
         limite.setText(prefs.limitePorHora.toString())
         modelo.setText(prefs.modelo)
+
+        confirmar = findViewById(R.id.confirmar)
+        confirmar.isChecked = prefs.confirmar
+        val ayuda = findViewById<TextView>(R.id.ayudaConfirmar)
+        fun textoAyuda(on: Boolean) {
+            ayuda.text = if (on) "Te pregunta antes de mandar mensajes, llamar o publicar."
+                         else "Modo libre: hace todo directo. Igual pregunta antes de pagar o borrar."
+            // Apagado se ve gris, encendido dorado
+            confirmar.trackTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (on) R.color.estrella else R.color.linea))
+            confirmar.thumbTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (on) R.color.sobre_estrella else R.color.bruma))
+        }
+        textoAyuda(confirmar.isChecked)
+        confirmar.setOnCheckedChangeListener { _, on -> textoAyuda(on) }
 
         findViewById<View>(R.id.atras).setOnClickListener { finish() }
         findViewById<View>(R.id.guardar).setOnClickListener { guardar() }
@@ -145,6 +161,7 @@ class AjustesActivity : AppCompatActivity() {
         prefs.apiKey = clave.text.toString()
         prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 60
         prefs.modelo = modelo.text.toString()
+        prefs.confirmar = confirmar.isChecked
 
         // El nombre nuevo recién se escucha al reiniciar el servicio
         if (prefs.nombre != nombreAnterior && AsistenteService.corriendo) {

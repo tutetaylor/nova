@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.avisoBoton).setOnClickListener { abrirAjustes() }
         findViewById<View>(R.id.encendido).setOnClickListener { alternarEncendido() }
         findViewById<View>(R.id.enviar).setOnClickListener { enviarTexto() }
+        findViewById<View>(R.id.charlar).setOnClickListener { alternarCharla() }
         entrada.setOnEditorActionListener { _, accion, _ ->
             if (accion == EditorInfo.IME_ACTION_SEND) { enviarTexto(); true } else false
         }
@@ -87,10 +88,11 @@ class MainActivity : AppCompatActivity() {
             parcial.visibility = if (t.isBlank()) View.GONE else View.VISIBLE
         }
         Bus.alNivel = { n -> estrella.nivel = n }
+        Bus.alCharla = { mostrarCharla() }
     }
 
     override fun onPause() {
-        Bus.alCambiarEstado = null; Bus.alMensaje = null; Bus.alParcial = null; Bus.alNivel = null
+        Bus.alCambiarEstado = null; Bus.alMensaje = null; Bus.alParcial = null; Bus.alNivel = null; Bus.alCharla = null
         super.onPause()
     }
 
@@ -103,6 +105,7 @@ class MainActivity : AppCompatActivity() {
         mostrarEstado(if (AsistenteService.corriendo) Bus.estado else Bus.Estado.APAGADO, Bus.detalle)
         mostrarEncendido()
         mostrarAviso()
+        mostrarCharla()
         reconstruirChat()
     }
 
@@ -118,8 +121,8 @@ class MainActivity : AppCompatActivity() {
         estadoTexto.text = when (e) {
             Bus.Estado.APAGADO -> "${prefs.nombre} está apagada. Tocá la estrella para encenderla."
             Bus.Estado.PREPARANDO -> detalle.ifBlank { "Preparando…" }
-            Bus.Estado.ESPERA -> "Decí «${prefs.nombre}» o tocá la estrella"
-            Bus.Estado.ESCUCHA -> "Te escucho…"
+            Bus.Estado.ESPERA -> if (Bus.charla) "Charlando · decí «chau» para terminar" else "Decí «${prefs.nombre}» o tocá la estrella"
+            Bus.Estado.ESCUCHA -> if (Bus.charla) "Te escucho · decí «chau» para terminar" else "Te escucho…"
             Bus.Estado.PENSANDO -> detalle.ifBlank { "Pensando…" }
             Bus.Estado.HABLANDO -> "Tocá la estrella para interrumpir"
         }
@@ -134,6 +137,27 @@ class MainActivity : AppCompatActivity() {
             ContextCompat.getColor(this, if (activa) R.color.ok else R.color.bruma))
         findViewById<View>(R.id.encendido).contentDescription =
             if (activa) "${prefs.nombre} está activa. Tocá para apagarla." else "${prefs.nombre} está apagada. Tocá para encenderla."
+    }
+
+    private fun mostrarCharla() {
+        val b = findViewById<MaterialButton>(R.id.charlar)
+        val activa = Bus.charla && AsistenteService.corriendo
+        b.text = if (activa) "Terminar charla" else "Charlar"
+        val fondo = if (activa) R.color.estrella else android.R.color.transparent
+        b.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, fondo))
+        b.setTextColor(ContextCompat.getColor(this, if (activa) R.color.sobre_estrella else R.color.texto))
+        b.iconTint = ColorStateList.valueOf(ContextCompat.getColor(this, if (activa) R.color.sobre_estrella else R.color.estrella))
+        b.strokeColor = ColorStateList.valueOf(ContextCompat.getColor(this, if (activa) R.color.estrella else R.color.linea))
+        mostrarEstado(if (AsistenteService.corriendo) Bus.estado else Bus.Estado.APAGADO, Bus.detalle)
+    }
+
+    private fun alternarCharla() {
+        if (!Pasos.puedeEncender(this)) {
+            Toast.makeText(this, "Primero cargá la clave y dale permiso al micrófono", Toast.LENGTH_LONG).show()
+            abrirAjustes(); return
+        }
+        ContextCompat.startForegroundService(this, Intent(this, AsistenteService::class.java)
+            .setAction(AsistenteService.ACCION_CHARLA))
     }
 
     private fun mostrarAviso() {

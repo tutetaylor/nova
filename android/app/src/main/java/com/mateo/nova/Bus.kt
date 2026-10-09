@@ -15,6 +15,12 @@ object Bus {
     var detalle = ""; private set
     val conversacion = mutableListOf<Mensaje>()
 
+    /** Modo charla: conversación continua sin decir el nombre. */
+    var charla = false; private set
+    var alCharla: ((Boolean) -> Unit)? = null
+
+    fun ponerCharla(activa: Boolean) = main.post { charla = activa; alCharla?.invoke(activa) }
+
     var alCambiarEstado: ((Estado, String) -> Unit)? = null
     var alMensaje: ((Mensaje) -> Unit)? = null
     var alParcial: ((String) -> Unit)? = null

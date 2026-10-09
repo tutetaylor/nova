@@ -29,6 +29,10 @@ class Prefs(ctx: Context) {
     var quiereEncendido: Boolean
         get() = sp.getBoolean("quiere_encendido", false)
         set(v) = sp.edit().putBoolean("quiere_encendido", v).apply()
+    /** Pedir permiso antes de mandar mensajes, llamar o publicar. Apagado = modo libre. */
+    var confirmar: Boolean
+        get() = sp.getBoolean("confirmar", true)
+        set(v) = sp.edit().putBoolean("confirmar", v).apply()
     /** Consultas permitidas por hora. 0 = sin límite. */
     var limitePorHora: Int
         get() = sp.getInt("limite_hora", 60)

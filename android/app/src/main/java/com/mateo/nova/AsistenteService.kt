@@ -40,6 +40,12 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         const val ACCION_ESCUCHAR = "com.mateo.nova.ESCUCHAR"
         const val ACCION_DETENER = "com.mateo.nova.DETENER"
         const val ACCION_TEXTO = "com.mateo.nova.TEXTO"
+        const val ACCION_CHARLA = "com.mateo.nova.CHARLA"
+
+        private val PARA_CHARLAR = setOf("charlemos", "hablemos", "modo charla", "quiero charlar", "charlemos un rato",
+            "hablemos un rato", "quiero hablar", "quiero hablar con vos", "charlemos un poco", "hablemos un poco")
+        private val PARA_TERMINAR = setOf("nada", "chau", "gracias", "listo", "cancelar", "eso es todo", "terminamos",
+            "termina la charla", "basta", "fin de la charla", "nos vemos", "hasta luego", "me voy", "despues seguimos")
         const val EXTRA_TEXTO = "texto"
         private const val CANAL = "nova"
         private const val TAG = "Nova"
@@ -61,6 +67,8 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     private var ttsListo = false
     private var estado = Estado.ESPERA
     private var seguirDespuesDeHablar = false
+    private var modoCharla = false
+    private var silencios = 0
 
     // ------------------------------------------------------------ CICLO DE VIDA
     override fun onCreate() {
@@ -100,6 +108,13 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             // Todo lo que hacés vos (encender, tocar la estrella, escribir) la deja encendida
             ACCION_ESCUCHAR -> { prefs.quiereEncendido = true; main.post { if (estado != Estado.PENSANDO) { tts?.stop(); escucharPedido() } } }
             ACCION_TEXTO -> { prefs.quiereEncendido = true; intent.getStringExtra(EXTRA_TEXTO)?.let { t -> main.post { procesar(t) } } }
+            ACCION_CHARLA -> {
+                prefs.quiereEncendido = true
+                main.post {
+                    if (modoCharla) { ponerCharla(false); tts?.stop(); frenarReconocimiento(); esperarNombre() }
+                    else { ponerCharla(true); decir(apertura(), seguir = true) }
+                }
+            }
             ACCION_ENCENDER -> { prefs.quiereEncendido = true; main.post { if (estado == Estado.ESPERA) esperarNombre() } }
             else -> main.post { if (estado == Estado.ESPERA) esperarNombre() }   // reinicio de Android (ya verificado arriba)
         }
@@ -136,7 +151,8 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     private fun decir(texto: String, seguir: Boolean) {
         if (texto.isBlank()) {   // acción hecha, no hace falta hablar
             Bus.mensaje(deVos = false, texto = "Listo.")
-            esperarNombre(); return
+            if (seguir) escucharPedido() else esperarNombre()
+            return
         }
         estado = Estado.HABLANDO
         seguirDespuesDeHablar = seguir
@@ -233,12 +249,35 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             override fun onResults(results: Bundle?) {
                 if (estado != Estado.ESCUCHA) return
                 val t = textos(results).firstOrNull().orEmpty()
-                if (t.isBlank()) esperarNombre() else procesar(quitarNombre(t))
+                if (t.isBlank()) sinRespuesta() else { silencios = 0; procesar(quitarNombre(t)) }
             }
-            override fun onError(error: Int) { if (estado == Estado.ESCUCHA) esperarNombre() }
+            override fun onError(error: Int) { if (estado == Estado.ESCUCHA) sinRespuesta() }
         })
         r.startListening(intentReco())
     }
+
+    /** No dijiste nada. En modo charla te espera un poco antes de irse. */
+    private fun sinRespuesta() {
+        if (!modoCharla) { esperarNombre(); return }
+        silencios++
+        if (silencios >= 3) {
+            ponerCharla(false)
+            decir("Te dejo tranquilo. Cuando quieras seguimos charlando.", seguir = false)
+        } else main.postDelayed({ if (estado == Estado.ESCUCHA && modoCharla) escucharPedido() }, 300)
+    }
+
+    private fun ponerCharla(activa: Boolean) {
+        modoCharla = activa
+        silencios = 0
+        cerebro.charla = activa
+        Bus.ponerCharla(activa)
+    }
+
+    private fun apertura() = listOf(
+        "¡Dale, charlemos! ¿Cómo venís hoy, ${prefs.usuario}?",
+        "¡Me encanta! Contame, ¿qué estuviste haciendo hoy?",
+        "¡De una! ¿De qué tenés ganas de hablar?",
+        "Acá estoy. ¿Cómo te trató el día?").random()
 
     // ------------------------------------------------------------ PENSAR
     private fun procesar(pedido: String) {
@@ -247,24 +286,26 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         Bus.parcial("")
         Bus.mensaje(deVos = true, texto = pedido)
         Bus.estado(Bus.Estado.PENSANDO)
-        val p = normalizar(pedido).trim(' ', '.', '!', '?')
-        if ("cuanto uso" in p || "limite de uso" in p) { decir(cerebro.resumenUso(), false); return }  // gratis
+        val p = normalizar(pedido).trim(' ', '.', '!', '?', ',', '¿', '¡')
+        if ("cuanto uso" in p || "limite de uso" in p) { decir(cerebro.resumenUso(), modoCharla); return }  // gratis
+        if (modoCharla && p in PARA_TERMINAR) { ponerCharla(false); decir("¡Qué linda charla! Cuando quieras seguimos.", false); return }
+        if (p in PARA_CHARLAR) { ponerCharla(true); decir(apertura(), seguir = true); return }
         when (p) {
             "nada", "chau", "gracias", "listo", "cancelar", "eso es todo" -> { decir("Dale, cualquier cosa me llamás.", false); return }
             "olvida todo", "nueva conversacion", "empecemos de nuevo" -> { cerebro.olvidar(); decir("Listo, empezamos de cero.", false); return }
-            "callate", "silencio", "para" -> { tts?.stop(); esperarNombre(); return }
+            "callate", "silencio", "para" -> { ponerCharla(false); tts?.stop(); esperarNombre(); return }
             "" -> { esperarNombre(); return }
         }
         scope.launch {
             // 1) Atajo instantáneo (sin internet ni cuota). 2) Si no aplica, Gemini.
             val rapido = withContext(Dispatchers.IO) { runCatching { comandos.intentar(pedido) }.getOrNull() }
-            if (rapido != null) { decir(rapido, seguir = false); return@launch }
+            if (rapido != null) { decir(rapido, seguir = modoCharla); return@launch }
             notificar("Pensando…")
             val respuesta = withContext(Dispatchers.IO) {
                 try { cerebro.pensar(pedido) }
                 catch (e: Exception) { Log.e(TAG, "Error", e); "Uy, tuve un problema: ${e.message?.take(80)}. ¿Probamos de nuevo?" }
             }
-            decir(respuesta, seguir = respuesta.trimEnd().endsWith("?"))
+            decir(respuesta, seguir = modoCharla || respuesta.trimEnd().endsWith("?"))
         }
     }
 
