@@ -1,91 +1,70 @@
-"""Arranca el asistente.
+"""Arranca Nova.
 
-  python main.py            modo voz (dice el nombre y hablale)
-  python main.py --texto    modo texto, para probar sin micrófono
+  python main.py            con ventana (la estrella, la charla y los ajustes)
+  python main.py --consola  solo voz, en la terminal
+  python main.py --texto    escribiendo en la terminal, sin micrófono
 """
 import sys
+import traceback
 
 import config
-import herramientas
-import rapidos
-from cerebro import Cerebro
-from voz import Boca, normalizar
-
-PARA_CORTAR = {"nada", "chau", "gracias", "listo", "eso es todo", "nada mas", "cancelar"}
-PARA_OLVIDAR = {"olvida todo", "nueva conversacion", "empecemos de nuevo"}
 
 
-def atender(cerebro, boca, pedido):
-    """Procesa un pedido. Devuelve True si conviene seguir escuchando sin wake word."""
-    p = normalizar(pedido).strip(" .!?")
-    if p in PARA_CORTAR:
-        boca.decir("Dale, cualquier cosa me llamás.")
-        return False
-    if "cuanto uso" in p or "limite de uso" in p:      # se responde gratis, sin gastar cuota
-        boca.decir(cerebro.limite.resumen())
-        return False
-    if p in PARA_OLVIDAR:
-        cerebro.olvidar()
-        boca.decir("Listo, empezamos de cero.")
-        return False
-    try:
-        rapido = rapidos.intentar(pedido)          # atajo instantáneo, sin internet ni cuota
-    except Exception as e:
-        print("Atajo falló:", e)
-        rapido = None
-    if rapido is not None:
-        if rapido:
-            boca.decir(rapido)
-        return False
-    try:
-        respuesta = cerebro.pensar(pedido)
-    except Exception as e:
-        print("Error:", e)
-        respuesta = "Uy, tuve un problema para pensar eso. ¿Probamos de nuevo?"
-    boca.decir(respuesta)
-    return config.SEGUIR_CHARLANDO and respuesta.rstrip().endswith("?")
-
-
-def modo_texto(cerebro, boca):
+def modo_texto(nucleo):
     print(f"Modo texto. Escribile a {config.NOMBRE} (Ctrl+C para salir).")
     while True:
         pedido = input("\n🧑 Vos: ").strip()
         if pedido:
-            atender(cerebro, boca, pedido)
+            nucleo.atender(pedido)
 
 
-def modo_voz(cerebro, boca):
-    from instalar_modelo import asegurar_modelo
-    from voz import Oido
-    asegurar_modelo()
-    oido = Oido()
-    boca.decir(f"Hola {config.USUARIO}, soy {config.NOMBRE}. Decí mi nombre cuando me necesites.")
-    while True:
-        print(f'👂 Esperando "{config.NOMBRE}"...')
-        oido.esperar_activacion()
-        seguir = True
-        primera = True
-        while seguir:
-            if primera:
-                boca.decir("¿Sí?")
-            primera = False
-            print("🎙️  Escuchando...")
-            pedido = oido.escuchar_pedido()
-            if not pedido:
-                break
-            print(f"🧑 Vos: {pedido}")
-            seguir = atender(cerebro, boca, pedido)
+def modo_consola(nucleo):
+    import time
+    print(f'Decí "{config.NOMBRE}" para hablarle (Ctrl+C para salir).')
+    nucleo.encender()
+    while nucleo.activo or nucleo.estado == "preparando":
+        time.sleep(0.5)
 
 
-def main():
-    boca = Boca()
-    herramientas.avisar = boca.decir           # los recordatorios hablan
-    herramientas.iniciar_recordatorios()
-    cerebro = Cerebro()
+def consola():
+    from nucleo import Nucleo
+
+    def mostrar(tipo, datos):
+        if tipo == "estado" and datos["estado"] in ("espera", "escucha", "preparando"):
+            textos = {"espera": f'👂 Esperando "{config.NOMBRE}"...', "escucha": "🎙️  Escuchando...",
+                      "preparando": datos["detalle"]}
+            print(textos[datos["estado"]])
+        elif tipo == "mensaje" and datos["deVos"]:
+            print(f"🧑 Vos: {datos['texto']}")
+
+    nucleo = Nucleo(emitir=mostrar)
+    if not nucleo.cerebro:
+        raise SystemExit("Falta GEMINI_API_KEY en el archivo .env (es gratis en aistudio.google.com/apikey)")
     try:
-        modo_texto(cerebro, boca) if "--texto" in sys.argv else modo_voz(cerebro, boca)
+        modo_texto(nucleo) if "--texto" in sys.argv else modo_consola(nucleo)
     except KeyboardInterrupt:
         print("\nChau 👋")
+
+
+def ventana():
+    try:
+        import webview  # noqa: F401
+    except ImportError:
+        print("No está instalada la ventana (pip install pywebview). Arranco en modo consola.")
+        return consola()
+    import app
+    app.main()
+
+
+def avisar_error(texto):
+    """Sin consola (el .exe con ventana), el error se guarda en un archivo y se muestra en un cartel."""
+    (config.BASE / "error.txt").write_text(texto, encoding="utf-8")
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(
+            0, f"Nova se cerró por un error.\n\nEl detalle quedó en:\n{config.BASE / 'error.txt'}", "Nova", 0x10)
+    else:
+        print(texto)
 
 
 if __name__ == "__main__":
@@ -95,14 +74,11 @@ if __name__ == "__main__":
         except Exception:
             pass
     try:
-        main()
-    except BaseException as e:
-        if config.EMPAQUETADO and not isinstance(e, (KeyboardInterrupt, SystemExit)):
-            import traceback
-            traceback.print_exc()
-            input("\nNova se cerró por un error. Copiá el mensaje de arriba y apretá Enter para salir.")
-        elif isinstance(e, SystemExit) and config.EMPAQUETADO:
-            print(e)
-            input("\nApretá Enter para salir.")
+        consola() if config.MODO_CONSOLA else ventana()
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except BaseException:
+        if config.EMPAQUETADO:
+            avisar_error(traceback.format_exc())
         else:
             raise

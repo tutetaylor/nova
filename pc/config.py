@@ -30,7 +30,10 @@ def _primer_inicio():
     print(f"\nListo. Podés cambiar todo después en {ARCHIVO_ENV}\n")
 
 
-if not ARCHIVO_ENV.exists() and not os.getenv("GEMINI_API_KEY") and sys.stdin and sys.stdin.isatty():
+# Solo en modo consola: con ventana, la configuración inicial se hace desde los ajustes de la ventana
+MODO_CONSOLA = "--texto" in sys.argv or "--consola" in sys.argv
+if (MODO_CONSOLA and not ARCHIVO_ENV.exists() and not os.getenv("GEMINI_API_KEY")
+        and sys.stdin and sys.stdin.isatty()):
     _primer_inicio()
 load_dotenv(ARCHIVO_ENV)
 
@@ -56,6 +59,7 @@ IDIOMA_STT = os.getenv("IDIOMA_STT", "es-AR")
 # --- Palabra de activación (offline con Vosk) ---
 VOSK_MODELO = Path(os.getenv("VOSK_MODELO", BASE / "modelos" / "vosk-model-small-es-0.42"))
 SEGUNDOS_ESCUCHA = float(os.getenv("SEGUNDOS_ESCUCHA", "8"))     # máximo para dictar un pedido
+SEGURIDAD_ACTIVACION = float(os.getenv("SEGURIDAD_ACTIVACION", "0.85"))  # más alto = menos activaciones falsas
 SEGUIR_CHARLANDO = os.getenv("SEGUIR_CHARLANDO", "1") == "1"      # si pregunta algo, escucha sin wake word
 
 # --- Datos locales ---
@@ -64,3 +68,36 @@ DATOS.mkdir(exist_ok=True)
 ARCHIVO_NOTAS = DATOS / "notas.md"
 ARCHIVO_RECORDATORIOS = DATOS / "recordatorios.json"
 CARPETA_CAPTURAS = Path(os.getenv("CARPETA_CAPTURAS", Path.home() / "Pictures" / NOMBRE))
+
+
+# --- Guardar desde la ventana de ajustes ---
+CAMPOS_EDITABLES = {"NOMBRE": str, "USUARIO": str, "CIUDAD": str, "GEMINI_API_KEY": str,
+                    "MODELO": str, "VOZ": str, "LIMITE_POR_HORA": int}
+
+
+def guardar(cambios: dict):
+    """Escribe los cambios en el .env (sin borrar lo demás) y los aplica al instante."""
+    lineas = ARCHIVO_ENV.read_text(encoding="utf-8").splitlines() if ARCHIVO_ENV.exists() else []
+    pendientes = {}
+    for clave, valor in cambios.items():
+        if clave not in CAMPOS_EDITABLES:
+            continue
+        tipo = CAMPOS_EDITABLES[clave]
+        try:
+            valor = tipo(str(valor).strip())
+        except ValueError:
+            continue
+        if clave == "NOMBRE" and not valor:
+            valor = "Nova"
+        globals()[clave] = valor
+        os.environ[clave] = str(valor)
+        pendientes[clave] = str(valor)
+    nuevas = []
+    for linea in lineas:
+        clave = linea.split("=", 1)[0].strip()
+        if clave in pendientes:
+            nuevas.append(f"{clave}={pendientes.pop(clave)}")
+        else:
+            nuevas.append(linea)
+    nuevas += [f"{k}={v}" for k, v in pendientes.items()]
+    ARCHIVO_ENV.write_text("\n".join(nuevas) + "\n", encoding="utf-8")

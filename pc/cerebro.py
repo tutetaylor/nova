@@ -7,7 +7,8 @@ import requests
 import config
 import herramientas
 
-PERSONALIDAD = f"""Sos {config.NOMBRE}, el asistente de voz personal de {config.USUARIO}, que vive en {config.CIUDAD}.
+def personalidad():
+    return f"""Sos {config.NOMBRE}, el asistente de voz personal de {config.USUARIO}, que vive en {config.CIUDAD}.
 Hablás en español rioplatense (voseo), con calidez, buen humor sutil y mucha precisión.
 
 Reglas de voz (todo lo que escribís se lee en voz alta):
@@ -21,6 +22,7 @@ Reglas de acción:
 - Antes de apagar o reiniciar la PC, preguntá y esperá un sí.
 - Si no entendiste el pedido, preguntá breve.
 """
+
 
 URL = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent"
 
@@ -95,7 +97,7 @@ class Cerebro:
         gen = {"maxOutputTokens": 1024}
         if modelo not in self.sin_nivel_pensamiento:      # pensar poco = responder mucho más rápido
             gen["thinkingConfig"] = {"thinkingLevel": "low"}
-        return {"systemInstruction": {"parts": [{"text": PERSONALIDAD}]},
+        return {"systemInstruction": {"parts": [{"text": personalidad()}]},
                 "contents": self.historial, "tools": self.declaraciones, "generationConfig": gen}
 
     def _llamar(self):

@@ -97,10 +97,13 @@ class Oido:
                 f"No encuentro el modelo Vosk en {config.VOSK_MODELO}. Corré: python instalar_modelo.py")
         self.modelo = Model(str(config.VOSK_MODELO))
         self.KaldiRecognizer = KaldiRecognizer
-        self.wake = normalizar(config.NOMBRE)
+
+    def _gramatica(self):
         # Gramática cerrada: solo reconoce el nombre (o "ruido"). Es liviano y casi no da falsos positivos.
-        variantes = {self.wake, f"oye {self.wake}", f"hola {self.wake}", f"che {self.wake}"}
-        self.gramatica = json.dumps(sorted(variantes) + ["[unk]"])
+        # Se arma cada vez para tomar el nombre nuevo si lo cambiás en los ajustes.
+        wake = normalizar(config.NOMBRE)
+        variantes = {wake, f"oye {wake}", f"hola {wake}", f"che {wake}"}
+        return wake, json.dumps(sorted(variantes) + ["[unk]"])
 
     def _stream(self, cola):
         import sounddevice as sd
@@ -110,22 +113,38 @@ class Oido:
         return sd.RawInputStream(samplerate=self.TASA, blocksize=4000, dtype="int16",
                                  channels=1, callback=cb)
 
-    def esperar_activacion(self):
-        """Bloquea hasta escuchar el nombre. Devuelve True."""
-        rec = self.KaldiRecognizer(self.modelo, self.TASA, self.gramatica)
+    def esperar_activacion(self, despertar=None, detener=None):
+        """Bloquea hasta escuchar el nombre (True). También vuelve si tocan la estrella
+        (evento `despertar`, True) o si apagan el asistente (evento `detener`, False)."""
+        wake, gramatica = self._gramatica()
+        variantes = set(json.loads(gramatica)) - {"[unk]"}
+        rec = self.KaldiRecognizer(self.modelo, self.TASA, gramatica)
+        rec.SetWords(True)      # incluye la seguridad de cada palabra
         cola = queue.Queue()
         with self._stream(cola):
             while True:
-                datos = cola.get()
-                if rec.AcceptWaveform(datos):
-                    texto = json.loads(rec.Result()).get("text", "")
-                else:
-                    texto = json.loads(rec.PartialResult()).get("partial", "")
-                if self.wake in normalizar(texto):
+                if detener is not None and detener.is_set():
+                    return False
+                if despertar is not None and despertar.is_set():
+                    despertar.clear()
+                    return True
+                try:
+                    datos = cola.get(timeout=0.2)
+                except queue.Empty:
+                    continue
+                if not rec.AcceptWaveform(datos):
+                    continue
+                # Solo frases terminadas, que sean exactamente el nombre y con buena seguridad:
+                # así no se activa con ruido ni con palabras parecidas en medio de una charla.
+                r = json.loads(rec.Result())
+                if r.get("text", "").strip() not in variantes:
+                    continue
+                seguridad = min((w.get("conf", 0) for w in r.get("result", []) if w.get("word") == wake), default=0)
+                if seguridad >= config.SEGURIDAD_ACTIVACION:
                     return True
 
-    def escuchar_pedido(self, max_seg=None) -> str:
-        """Graba hasta que hay silencio y devuelve el texto dicho."""
+    def escuchar_pedido(self, max_seg=None, al_nivel=None) -> str:
+        """Graba hasta que hay silencio y devuelve el texto dicho. `al_nivel(0..1)` recibe el volumen de tu voz."""
         import numpy as np
         max_seg = max_seg or config.SEGUNDOS_ESCUCHA
         cola = queue.Queue()
@@ -137,6 +156,8 @@ class Oido:
                 b = cola.get()
                 bloques.append(b)
                 energia = np.abs(np.frombuffer(b, dtype=np.int16)).mean()
+                if al_nivel:
+                    al_nivel(min(1.0, float(energia) / 2500))
                 if energia > umbral:
                     hablo, silencio = True, 0
                 else:
