@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cielo: #121033;
+    --cielo-alto: #1B1850;
+    --nube: #1E1B48;
+    --nube-alta: #262260;
+    --linea: #2E2A66;
+    --texto: #F5F3FF;
+    --bruma: #A9A4D9;
+    --tenue: #7C77B0;
+    --estrella: #FFD27A;
+    --sobre-estrella: #2A1E00;
+    --nebulosa: #8F7DFF;
+    --ok: #86E3B9;
+    --falta: #FF9F8F;
+    --fuente: "Onest", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--cielo);
+    color: var(--texto);
+    font-family: var(--fuente);
+    font-size: 16px;
+    line-height: 1.5;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  #cielo { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--estrella); outline-offset: 3px; }
+
+  .app { position: relative; z-index: 1; height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+
+  /* ---------- Barra superior ---------- */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 28px 6px;
+  }
+  .marca { display: flex; align-items: center; gap: 10px; font-weight: 500; font-size: 20px; flex: 1; }
+  .marca svg { width: 28px; height: 28px; }
+  .pastilla {
+    display: inline-flex; align-items: center; gap: 9px;
+    height: 40px; padding: 0 18px 0 15px;
+    background: var(--nube); border: 1px solid var(--linea); border-radius: 100px;
+    cursor: pointer; font-size: 14px; font-weight: 500;
+    transition: border-color .2s;
+  }
+  .pastilla:hover { border-color: var(--bruma); }
+  .pastilla .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--bruma); }
+  .pastilla[data-activa="true"] .punto { background: var(--ok); box-shadow: 0 0 0 4px rgba(134,227,185,.15); }
+  .icono {
+    width: 44px; height: 44px; display: grid; place-items: center;
+    background: none; border: 0; border-radius: 50%; cursor: pointer; color: var(--bruma);
+  }
+  .icono:hover { background: rgba(255,255,255,.06); color: var(--texto); }
+  .icono svg { width: 22px; height: 22px; }
+
+  /* ---------- Escena: presencia a la izquierda, charla a la derecha ---------- */
+  .escena {
+    display: grid; grid-template-columns: minmax(340px, 1fr) minmax(360px, 520px);
+    gap: 28px; padding: 6px 28px 28px; min-height: 0;
+  }
+  .presencia {
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    min-height: 0; text-align: center; padding-bottom: 24px;
+  }
+  .saludo {
+    font-weight: 300; font-size: clamp(30px, 3.6vw, 44px); line-height: 1.15;
+    letter-spacing: -0.015em; margin: 0 0 6px; text-wrap: balance;
+  }
+  .estrella {
+    width: min(360px, 42vh); aspect-ratio: 1; border: 0; padding: 0; background: none;
+    cursor: pointer; border-radius: 50%; display: block;
+  }
+  .estrella canvas { width: 100%; height: 100%; display: block; }
+  .estado { color: var(--bruma); margin: 0; min-height: 24px; font-size: 16px; }
+  .parcial {
+    font-weight: 300; font-size: 22px; margin: 8px 0 0; min-height: 33px; max-width: 30ch;
+    color: var(--texto); opacity: 0; transition: opacity .2s;
+  }
+  .parcial.visible { opacity: 1; }
+
+  .aviso {
+    margin-top: 22px; display: none; align-items: center; gap: 16px; text-align: left;
+    background: #2A2440; border: 1px solid #5C4A2A; border-radius: 20px; padding: 14px 14px 14px 20px;
+    max-width: 440px;
+  }
+  .aviso.visible { display: flex; }
+  .aviso strong { display: block; color: var(--estrella); font-weight: 500; font-size: 15px; }
+  .aviso span { color: var(--bruma); font-size: 14px; }
+
+  .boton {
+    border: 0; border-radius: 100px; padding: 0 22px; height: 44px; cursor: pointer;
+    background: var(--estrella); color: var(--sobre-estrella); font-weight: 500; white-space: nowrap;
+    transition: filter .15s, transform .15s;
+  }
+  .boton:hover { filter: brightness(1.06); }
+  .boton:active { transform: scale(.98); }
+  .boton.secundario { background: none; color: var(--estrella); border: 1px solid var(--estrella); height: 38px; padding: 0 16px; }
+
+  /* ---------- Charla ---------- */
+  .charla {
+    display: flex; flex-direction: column; min-height: 0;
+    background: rgba(30, 27, 72, .72); border: 1px solid var(--linea); border-radius: 28px;
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+  }
+  .mensajes {
+    flex: 1; overflow-y: auto; padding: 24px 22px 12px;
+    display: flex; flex-direction: column; gap: 10px;
+    scrollbar-width: thin; scrollbar-color: var(--linea) transparent;
+    mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
+  }
+  .burbuja {
+    max-width: 82%; padding: 11px 17px 12px; font-size: 15.5px; line-height: 1.5;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+    animation: aparecer .22s ease-out;
+  }
+  .burbuja.nova { align-self: flex-start; background: var(--nube-alta); border-radius: 6px 22px 22px 22px; }
+  .burbuja.vos { align-self: flex-end; background: var(--estrella); color: var(--sobre-estrella); border-radius: 22px 6px 22px 22px; }
+  @keyframes aparecer { from { opacity: 0; transform: translateY(8px); } }
+
+  .ideas { margin: auto 0 4px; }
+  .ideas p { color: var(--bruma); font-size: 14px; margin: 0 0 12px 4px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--linea); background: var(--cielo); border-radius: 18px;
+    padding: 8px 15px; font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .chip:hover { border-color: var(--estrella); background: var(--nube-alta); }
+
+  .entrada {
+    display: flex; align-items: center; gap: 8px;
+    margin: 10px 14px 14px; padding: 7px 7px 7px 22px;
+    background: var(--cielo); border: 1px solid var(--linea); border-radius: 100px;
+    transition: border-color .15s;
+  }
+  .entrada:focus-within { border-color: var(--estrella); }
+  .entrada input { flex: 1; background: none; border: 0; outline: 0; font-size: 16px; min-width: 0; }
+  .entrada input::placeholder { color: var(--tenue); }
+  .enviar {
+    width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--estrella); color: var(--sobre-estrella); display: grid; place-items: center; flex: none;
+  }
+  .enviar svg { width: 20px; height: 20px; }
+
+  /* ---------- Panel de ajustes ---------- */
+  .velo { position: fixed; inset: 0; background: rgba(8, 6, 28, .55); z-index: 5; opacity: 0; pointer-events: none; transition: opacity .25s; }
+  .velo.abierto { opacity: 1; pointer-events: auto; }
+  .panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(480px, 100vw); z-index: 6;
+    background: var(--cielo); border-left: 1px solid var(--linea);
+    display: grid; grid-template-rows: auto 1fr auto;
+    transform: translateX(100%); transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .panel.abierto { transform: none; }
+  .panel:focus { outline: none; }
+  .panel-cabeza { display: flex; align-items: center; gap: 6px; padding: 16px 16px 8px 12px; }
+  .panel-cabeza h2 { font-size: 22px; font-weight: 500; margin: 0; }
+  .panel-cuerpo { overflow-y: auto; padding: 4px 24px 24px; scrollbar-width: thin; scrollbar-color: var(--linea) transparent; }
+  .panel-pie { padding: 12px 24px 20px; border-top: 1px solid var(--linea); }
+  .panel-pie .boton { width: 100%; height: 54px; font-size: 16px; }
+  .seccion { color: var(--bruma); font-size: 15px; font-weight: 500; margin: 26px 6px 10px; }
+  .grupo { background: var(--nube); border: 1px solid var(--linea); border-radius: 24px; padding: 18px; }
+  .campo + .campo { margin-top: 20px; }
+  .campo label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  .campo input, .campo select {
+    width: 100%; height: 50px; padding: 0 16px; font-size: 16px;
+    background: var(--cielo); border: 1px solid var(--linea); border-radius: 14px; outline: 0;
+  }
+  .campo input:focus, .campo select:focus { border-color: var(--estrella); }
+  .ayuda { color: var(--bruma); font-size: 13px; margin: 7px 0 0; line-height: 1.45; }
+  .ayuda a { color: var(--nebulosa); text-decoration: none; }
+  .ayuda a:hover { text-decoration: underline; }
+
+  .paso { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
+  .paso + .paso { border-top: 1px solid var(--linea); }
+  .paso .num {
+    width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    border: 1px solid var(--linea); font-size: 14px; font-weight: 500;
+  }
+  .paso.hecho .num { background: var(--ok); border-color: var(--ok); color: var(--cielo); }
+  .paso .info { flex: 1; }
+  .paso .info b { display: block; font-weight: 500; font-size: 15px; }
+  .paso .info span { color: var(--bruma); font-size: 13px; }
+  .paso .listo { color: var(--ok); font-weight: 500; font-size: 14px; }
+
+  .aviso-guardado {
+    position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px); z-index: 7;
+    background: var(--nube-alta); border: 1px solid var(--linea); border-radius: 100px; padding: 10px 20px;
+    font-size: 14px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  }
+  .aviso-guardado.visible { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- Ventana angosta: todo en una columna ---------- */
+  @media (max-width: 820px) {
+    body { overflow: auto; }
+    .app { height: auto; min-height: 100vh; }
+    .escena { grid-template-columns: 1fr; padding: 0 16px 16px; gap: 12px; }
+    header { padding: 14px 16px 4px; }
+    .estrella { width: min(260px, 60vw); }
+    .presencia { padding-bottom: 0; }
+    .charla { min-height: 380px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<canvas id="cielo" aria-hidden="true"></canvas>
+
+<div class="app">
+  <header>
+    <div class="marca">
+      <svg viewBox="0 0 108 108" aria-hidden="true">
+        <path fill="#FFD27A" d="M54,22 C56,44 64,52 86,54 C64,56 56,64 54,86 C52,64 44,56 22,54 C44,52 52,44 54,22 Z"/>
+        <path fill="#FFF4D6" d="M54,40 C55,50 58,53 68,54 C58,55 55,58 54,68 C53,58 50,55 40,54 C50,53 53,50 54,40 Z"/>
+      </svg>
+      <span id="marca">Nova</span>
+    </div>
+    <button class="pastilla" id="encendido" data-activa="false">
+      <span class="punto"></span><span id="encendidoTexto">Apagada</span>
+    </button>
+    <button class="icono" id="abrirAjustes" aria-label="Ajustes" title="Ajustes">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"/></svg>
+    </button>
+  </header>
+
+  <main class="escena">
+    <section class="presencia">
+      <h1 class="saludo" id="saludo">Hola</h1>
+      <button class="estrella" id="estrella" aria-label="Tocá para hablar">
+        <canvas id="lienzo"></canvas>
+      </button>
+      <p class="estado" id="estado" aria-live="polite"></p>
+      <p class="parcial" id="parcial"></p>
+      <div class="aviso" id="aviso">
+        <div><strong id="avisoTitulo"></strong><span id="avisoTexto"></span></div>
+        <button class="boton" id="avisoBoton">Completar</button>
+      </div>
+    </section>
+
+    <section class="charla" aria-label="Conversación">
+      <div class="mensajes" id="mensajes" aria-live="polite">
+        <div class="ideas" id="ideas">
+          <p>Probá con</p>
+          <div class="chips" id="chips"></div>
+        </div>
+      </div>
+      <form class="entrada" id="formulario" autocomplete="off">
+        <input id="texto" placeholder="Escribile a Nova…" aria-label="Escribir un pedido">
+        <button class="enviar" type="submit" aria-label="Enviar">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4,20.4l17.45,-7.48c0.81,-0.35 0.81,-1.49 0,-1.84L3.4,3.6c-0.66,-0.29 -1.39,0.2 -1.39,0.91L2,9.12c0,0.5 0.37,0.93 0.87,0.99L17,12 2.87,13.88c-0.5,0.07 -0.87,0.5 -0.87,1l0.01,4.61c0,0.71 0.73,1.2 1.39,0.91z"/></svg>
+        </button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<!-- Ajustes -->
+<div class="velo" id="velo"></div>
+<aside class="panel" id="panel" aria-label="Ajustes" aria-hidden="true" tabindex="-1">
+  <div class="panel-cabeza">
+    <button class="icono" id="cerrarAjustes" aria-label="Volver">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z"/></svg>
+    </button>
+    <h2>Ajustes</h2>
+  </div>
+  <div class="panel-cuerpo">
+    <div class="seccion" style="margin-top:8px">Para que funcione</div>
+    <div class="grupo" id="pasos" style="padding-top:6px;padding-bottom:6px"></div>
+
+    <div class="seccion">Tu asistente</div>
+    <div class="grupo">
+      <div class="campo">
+        <label for="fNombre">Nombre</label>
+        <input id="fNombre" placeholder="Nova">
+        <p class="ayuda">Es también la palabra para llamarlo. Usá una palabra común en español.</p>
+      </div>
+      <div class="campo">
+        <label for="fUsuario">¿Cómo te llamás?</label>
+        <input id="fUsuario">
+      </div>
+      <div class="campo">
+        <label for="fCiudad">Tu ciudad</label>
+        <input id="fCiudad">
+        <p class="ayuda">Para el clima cuando no decís dónde.</p>
+      </div>
+      <div class="campo">
+        <label for="fVoz">Voz</label>
+        <select id="fVoz">
+          <option value="es-AR-ElenaNeural">Elena · Argentina</option>
+          <option value="es-AR-TomasNeural">Tomás · Argentina</option>
+          <option value="es-UY-ValentinaNeural">Valentina · Uruguay</option>
+          <option value="es-MX-DaliaNeural">Dalia · México</option>
+          <option value="es-ES-AlvaroNeural">Álvaro · España</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="seccion">Cerebro gratis</div>
+    <div class="grupo">
+      <div class="campo">
+        <label for="fClave">Clave de Gemini</label>
+        <input id="fClave" type="password" placeholder="AIza…">
+        <p class="ayuda"><a href="#" id="linkClave">Conseguila gratis en aistudio.google.com/apikey</a></p>
+      </div>
+      <div class="campo">
+        <label for="fLimite">Consultas por hora</label>
+        <input id="fLimite" type="number" min="0" inputmode="numeric">
+        <p class="ayuda" id="uso"></p>
+      </div>
+      <div class="campo">
+        <label for="fModelo">Modelo</label>
+        <input id="fModelo">
+        <p class="ayuda">Si se queda sin cuota, Nova prueba solo con otros modelos gratis.</p>
+      </div>
+    </div>
+  </div>
+  <div class="panel-pie">
+    <button class="boton" id="guardar">Guardar cambios</button>
+  </div>
+</aside>
+<div class="aviso-guardado" id="avisoGuardado" role="status">Cambios guardados</div>
+
+<script>
+/* ============================================================ Estrella */
+const reducir = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const ORO = [255, 210, 122], ORO_CLARO = [255, 244, 214], VIOLETA = [143, 125, 255], CENIZA = [90, 85, 144];
+const mezclar = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const rgba = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+const Estrella = {
+  lienzo: document.getElementById("lienzo"),
+  estado: "apagado", nivel: 0, nivelSuave: 0,
+  color: CENIZA, desde: CENIZA, tCambio: 0, t0: performance.now(),
+
+  destino() {
+    return { apagado: CENIZA, preparando: mezclar(CENIZA, ORO, .5), pensando: mezclar(ORO, VIOLETA, .55) }[this.estado] || ORO;
+  },
+  cambiar(e) {
+    if (e === this.estado) return;
+    this.desde = this.color; this.tCambio = performance.now(); this.estado = e;
+    if (e !== "escucha") this.nivel = 0;
+  },
+  dibujar(ahora) {
+    const c = this.lienzo, dpr = devicePixelRatio || 1;
+    const lado = c.clientWidth;
+    if (c.width !== lado * dpr) { c.width = c.height = lado * dpr; }
+    const g = c.getContext("2d");
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, lado, lado);
+    const t = reducir ? 0 : (ahora - this.t0) / 1000;
+    const cx = lado / 2, cy = lado / 2, base = lado / 2 * .34;
+    const avance = Math.min(1, (ahora - this.tCambio) / 400);
+    this.color = mezclar(this.desde, this.destino(), avance);
+    this.nivelSuave += (this.nivel - this.nivelSuave) * .25;
+    const e = this.estado, apagado = e === "apagado";
+    const escala = {
+      espera: 1 + .035 * Math.sin(t * 1.6),
+      escucha: 1.06 + this.nivelSuave * .22,
+      hablando: 1.03 + .05 * Math.sin(t * 9) * Math.sin(t * 3.1),
+      pensando: .94 + .02 * Math.sin(t * 4),
+      preparando: .92 + .03 * Math.sin(t * 2.2),
+      apagado: .88,
+    }[e];
+    const r = base * escala;
+
+    // Halo
+    const halo = g.createRadialGradient(cx, cy, r * .4, cx, cy, r * 2.1);
+    halo.addColorStop(0, rgba(this.color, apagado ? .18 : .42 + .1 * Math.sin(t * 1.3)));
+    halo.addColorStop(1, rgba(this.color, 0));
+    g.fillStyle = halo; g.beginPath(); g.arc(cx, cy, r * 2.1, 0, Math.PI * 2); g.fill();
+
+    // Ondas al escuchar
+    if (e === "escucha") for (let i = 0; i < 3; i++) {
+      const f = (t * .7 + i / 3) % 1;
+      g.strokeStyle = rgba(ORO, (1 - f) * .6); g.lineWidth = 1.5 + 2.5 * (1 - f);
+      g.beginPath(); g.arc(cx, cy, r * (1.05 + f * .9), 0, Math.PI * 2); g.stroke();
+    }
+
+    // Nebulosa al pensar
+    if (e === "pensando") for (let i = 0; i < 2; i++) {
+      const rr = r * (1.28 + i * .2), giro = t * (i === 0 ? 2.4 : -1.65);
+      const arco = g.createConicGradient(giro, cx, cy);
+      arco.addColorStop(0, rgba(VIOLETA, 0)); arco.addColorStop(.35, rgba(VIOLETA, .9));
+      arco.addColorStop(.6, rgba(ORO_CLARO, .9)); arco.addColorStop(.7, rgba(VIOLETA, 0)); arco.addColorStop(1, rgba(VIOLETA, 0));
+      g.strokeStyle = arco; g.lineWidth = i === 0 ? 3.5 : 2; g.lineCap = "round";
+      g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.stroke();
+    }
+
+    // Destello de cuatro puntas (como el logo): anchas en la base, afiladas en la punta
+    if (!apagado) {
+      const pulso = 1 + .08 * Math.sin(t * 2) + (e === "escucha" ? this.nivelSuave * .35 : 0);
+      const giro = .05 * Math.sin(t * .4);
+      const rayo = (a, largo, ancho, alfa) => {
+        const px = Math.cos(a + Math.PI / 2) * ancho, py = Math.sin(a + Math.PI / 2) * ancho;
+        const tx = cx + Math.cos(a) * largo, ty = cy + Math.sin(a) * largo;
+        const grad = g.createLinearGradient(cx, cy, tx, ty);
+        grad.addColorStop(0, rgba(ORO_CLARO, alfa)); grad.addColorStop(.55, rgba(this.color, alfa * .55)); grad.addColorStop(1, rgba(this.color, 0));
+        g.fillStyle = grad;
+        g.beginPath(); g.moveTo(cx + px, cy + py); g.lineTo(tx, ty); g.lineTo(cx - px, cy - py); g.closePath(); g.fill();
+      };
+      for (let k = 0; k < 4; k++) rayo(k * Math.PI / 2 - Math.PI / 2 + giro, r * 2.25 * pulso, r * .2, .95);
+      for (let k = 0; k < 4; k++) rayo(k * Math.PI / 2 - Math.PI / 4 + giro, r * 1.45 * pulso, r * .09, .55);
+    }
+
+    // Núcleo
+    const nucleo = g.createRadialGradient(cx - r * .18, cy - r * .22, 0, cx, cy, r * 1.15);
+    nucleo.addColorStop(0, apagado ? rgba(CENIZA) : "#fff");
+    nucleo.addColorStop(.25, apagado ? rgba(CENIZA) : rgba(ORO_CLARO));
+    nucleo.addColorStop(.7, rgba(this.color));
+    nucleo.addColorStop(1, rgba(mezclar(this.color, [18, 16, 51], .6)));
+    g.fillStyle = nucleo; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+
+    // Chispas al hablar
+    if (e === "hablando") {
+      let semilla = 7; const azar = () => (semilla = (semilla * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 7; i++) {
+        const vel = .25 + azar() * .35, f = (t * vel + azar()) % 1, ang = azar() * Math.PI * 2, d = r * (1.1 + f * 1.1);
+        g.fillStyle = rgba(ORO_CLARO, (1 - f) * .9);
+        g.beginPath(); g.arc(cx + Math.cos(ang) * d, cy + Math.sin(ang) * d, 1.5 + 2 * (1 - f), 0, Math.PI * 2); g.fill();
+      }
+    }
+  },
+};
+
+function bucle(ahora) {
+  Estrella.dibujar(ahora);
+  if (!reducir || Estrella.tCambio > ahora - 450) requestAnimationFrame(bucle);
+}
+requestAnimationFrame(bucle);
+
+/* ============================================================ Cielo de fondo */
+function pintarCielo() {
+  const c = document.getElementById("cielo"), dpr = devicePixelRatio || 1;
+  const w = innerWidth, h = innerHeight;
+  c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext("2d"); g.scale(dpr, dpr);
+  const fondo = g.createLinearGradient(0, 0, 0, h);
+  fondo.addColorStop(0, "#1B1850"); fondo.addColorStop(1, "#121033");
+  g.fillStyle = fondo; g.fillRect(0, 0, w, h);
+  let s = 2026; const azar = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const cantidad = Math.min(260, Math.round(w * h / 7000));
+  for (let i = 0; i < cantidad; i++) {
+    g.fillStyle = `rgba(255,255,255,${.1 + azar() * .32})`;
+    g.beginPath(); g.arc(azar() * w, azar() * h, azar() < .08 ? 1.3 : .7, 0, Math.PI * 2); g.fill();
+  }
+}
+pintarCielo();
+addEventListener("resize", pintarCielo);
+
+/* ============================================================ Interfaz */
+const $ = id => document.getElementById(id);
+const api = () => window.pywebview && window.pywebview.api;
+let datos = { nombre: "Nova", usuario: "", activo: false };
+
+const IDEAS = ["¿Qué hora es?", "Abrí Spotify", "¿Cómo está el clima mañana?",
+               "Recordame en 10 minutos sacar la ropa", "Subí el volumen", "Buscá en YouTube recetas de pizza"];
+for (const idea of IDEAS) {
+  const b = document.createElement("button");
+  b.className = "chip"; b.type = "button"; b.textContent = idea;
+  b.onclick = () => enviar(idea);
+  $("chips").append(b);
+}
+
+function saludo() {
+  const h = new Date().getHours();
+  const parte = h >= 5 && h <= 12 ? "Buen día" : h <= 19 && h > 12 ? "Buenas tardes" : "Buenas noches";
+  return datos.usuario ? `${parte}, ${datos.usuario}` : parte;
+}
+
+function textoEstado(e, detalle) {
+  const n = datos.nombre;
+  return {
+    apagado: detalle || `${n} está apagada. Tocá la estrella para encenderla.`,
+    preparando: detalle || "Preparando…",
+    espera: `Decí «${n}» o tocá la estrella`,
+    escucha: "Te escucho…",
+    pensando: detalle || "Pensando…",
+    hablando: "Tocá la estrella para interrumpir",
+  }[e];
+}
+
+function mostrarEstado(e, detalle = "") {
+  Estrella.cambiar(e);
+  if (reducir) requestAnimationFrame(bucle);
+  $("estado").textContent = textoEstado(e, detalle);
+  if (e !== "escucha") $("parcial").classList.remove("visible");
+  datos.activo = e !== "apagado";
+  $("encendido").dataset.activa = datos.activo;
+  $("encendidoTexto").textContent = datos.activo ? "Activa" : "Apagada";
+  $("encendido").setAttribute("aria-label", datos.activo ? `${datos.nombre} está activa. Apagar` : `${datos.nombre} está apagada. Encender`);
+}
+
+function agregarMensaje(m, animar = true) {
+  $("ideas").style.display = "none";
+  const d = document.createElement("div");
+  d.className = "burbuja " + (m.deVos ? "vos" : "nova");
+  if (!animar) d.style.animation = "none";
+  d.textContent = m.texto;
+  $("mensajes").append(d);
+  $("mensajes").scrollTop = $("mensajes").scrollHeight;
+}
+
+function mostrarAviso() {
+  const falta = !datos.clave;
+  $("aviso").classList.toggle("visible", falta);
+  if (falta) {
+    $("avisoTitulo").textContent = "Falta un paso para encenderla";
+    $("avisoTexto").textContent = "Cargá tu clave gratis de Gemini.";
+  }
+}
+
+function refrescar() {
+  $("marca").textContent = datos.nombre;
+  document.title = datos.nombre;
+  $("saludo").textContent = saludo();
+  $("texto").placeholder = `Escribile a ${datos.nombre}…`;
+  mostrarAviso();
+}
+
+/* Python llama a esta función para avisar lo que pasa */
+window.nova = {
+  evento(tipo, d) {
+    if (tipo === "estado") mostrarEstado(d.estado, d.detalle);
+    else if (tipo === "mensaje") agregarMensaje(d);
+    else if (tipo === "parcial") { $("parcial").textContent = d.texto; $("parcial").classList.toggle("visible", !!d.texto); }
+    else if (tipo === "nivel") Estrella.nivel = d.nivel;
+  },
+};
+
+async function enviar(texto) {
+  if (!datos.clave) { abrirAjustes(); $("fClave").focus(); return; }
+  await api()?.enviar(texto);
+}
+
+$("formulario").onsubmit = e => {
+  e.preventDefault();
+  const t = $("texto").value.trim();
+  if (!t) return;
+  $("texto").value = "";
+  enviar(t);
+};
+$("estrella").onclick = () => {
+  if (!datos.clave) { abrirAjustes(); $("fClave").focus(); return; }
+  api()?.hablar();
+};
+$("encendido").onclick = () => {
+  if (!datos.clave) { abrirAjustes(); $("fClave").focus(); return; }
+  api()?.encender(!datos.activo);
+};
+$("avisoBoton").onclick = () => { abrirAjustes(); $("fClave").focus(); };
+
+/* ============================================================ Ajustes */
+function dibujarPasos() {
+  const pasos = [
+    { hecho: !!datos.clave, titulo: "Clave gratis de Gemini", texto: "Es el cerebro. Se carga más abajo." , accion: "Cargar", fn: () => $("fClave").focus() },
+    { hecho: !!datos.vozOffline, titulo: "Voz offline", texto: datos.vozOffline ? "Para escuchar su nombre sin internet." : "Se baja sola la primera vez que la encendés (40 MB)." },
+  ];
+  $("pasos").replaceChildren(...pasos.map((p, i) => {
+    const fila = document.createElement("div");
+    fila.className = "paso" + (p.hecho ? " hecho" : "");
+    fila.innerHTML = `<div class="num">${p.hecho ? "✓" : i + 1}</div><div class="info"><b></b><span></span></div>`;
+    fila.querySelector("b").textContent = p.titulo;
+    fila.querySelector("span").textContent = p.texto;
+    if (p.hecho) fila.insertAdjacentHTML("beforeend", `<span class="listo">Listo</span>`);
+    else if (p.accion) {
+      const b = document.createElement("button");
+      b.className = "boton secundario"; b.textContent = p.accion; b.onclick = p.fn;
+      fila.append(b);
+    }
+    return fila;
+  }));
+}
+
+function abrirAjustes() {
+  $("fNombre").value = datos.nombre; $("fUsuario").value = datos.usuario; $("fCiudad").value = datos.ciudad;
+  $("fVoz").value = datos.voz; $("fClave").value = datos.clave; $("fLimite").value = datos.limite; $("fModelo").value = datos.modelo;
+  $("uso").textContent = datos.limite > 0
+    ? `Usaste ${datos.usadas} de ${datos.limite} en la última hora. 0 = sin límite.`
+    : `Sin límite propio. Usaste ${datos.usadas} en la última hora.`;
+  dibujarPasos();
+  $("panel").classList.add("abierto"); $("velo").classList.add("abierto");
+  $("panel").setAttribute("aria-hidden", "false");
+  setTimeout(() => $("panel").focus(), 50);
+}
+function cerrarAjustes() {
+  $("panel").classList.remove("abierto"); $("velo").classList.remove("abierto");
+  $("panel").setAttribute("aria-hidden", "true");
+  $("abrirAjustes").focus();
+}
+$("abrirAjustes").onclick = abrirAjustes;
+$("cerrarAjustes").onclick = cerrarAjustes;
+$("velo").onclick = cerrarAjustes;
+addEventListener("keydown", e => { if (e.key === "Escape" && $("panel").classList.contains("abierto")) cerrarAjustes(); });
+$("linkClave").onclick = e => { e.preventDefault(); api()?.abrir_link("https://aistudio.google.com/apikey"); };
+
+$("guardar").onclick = async () => {
+  const cambios = {
+    NOMBRE: $("fNombre").value, USUARIO: $("fUsuario").value, CIUDAD: $("fCiudad").value, VOZ: $("fVoz").value,
+    GEMINI_API_KEY: $("fClave").value, LIMITE_POR_HORA: $("fLimite").value || "60", MODELO: $("fModelo").value,
+  };
+  const nuevo = await api()?.guardar_ajustes(cambios);
+  if (nuevo) Object.assign(datos, nuevo);
+  refrescar(); cerrarAjustes();
+  const a = $("avisoGuardado"); a.classList.add("visible"); setTimeout(() => a.classList.remove("visible"), 1800);
+};
+
+/* ============================================================ Arranque */
+async function arrancar() {
+  const inicio = await api().iniciar();
+  Object.assign(datos, inicio);
+  refrescar();
+  for (const m of inicio.conversacion) agregarMensaje(m, false);
+  mostrarEstado(inicio.estado, inicio.detalle);
+  if (!datos.clave) setTimeout(abrirAjustes, 400);
+}
+if (window.pywebview) arrancar(); else addEventListener("pywebviewready", arrancar);
+setInterval(() => { $("saludo").textContent = saludo(); }, 60000);
+</script>
+</body>
+</html>
