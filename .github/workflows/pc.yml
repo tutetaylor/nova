@@ -31,18 +31,21 @@ jobs:
         working-directory: pc
         env:
           GEMINI_API_KEY: clave-de-prueba-para-importar
-        run: python -c "import config, herramientas, cerebro, voz, instalar_modelo; print(len(herramientas.REGISTRO), 'herramientas OK')"
+        run: python -c "import config, herramientas, cerebro, voz, rapidos, nucleo, app, instalar_modelo, webview; print(len(herramientas.REGISTRO), 'herramientas OK')"
 
-      - name: Armar Nova.exe
+      - name: Armar Nova.exe (con ventana)
         working-directory: pc
         run: >
-          pyinstaller main.py --onefile --console --name Nova --noconfirm
+          pyinstaller main.py --onefile --windowed --name Nova --noconfirm
+          --add-data "interfaz;interfaz"
           --collect-all vosk
           --collect-all edge_tts
+          --collect-all webview
           --collect-data speech_recognition
           --collect-data certifi
           --hidden-import pyttsx3.drivers
           --hidden-import pyttsx3.drivers.sapi5
+          --hidden-import clr
 
       - name: Publicar en Releases
         shell: bash
@@ -53,4 +56,4 @@ jobs:
           gh release delete pc-ultima --yes --cleanup-tag || true
           gh release create pc-ultima Nova.exe \
             --title "Nova para PC - última versión" \
-            --notes "Compilada desde ${GITHUB_SHA::7}. Bajá Nova.exe y abrilo con doble clic. La primera vez te pide la clave y descarga el modelo de voz."
+            --notes "Compilada desde ${GITHUB_SHA::7}. Bajá Nova.exe y abrilo con doble clic. La primera vez te pide la clave gratis de Gemini en los ajustes."
