@@ -140,24 +140,36 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
         return texto.ifBlank { "Listo." }
     }
 
-    private fun llamarApi(): JSONObject {
-        val cuerpo = JSONObject()
+    /** Modelos que no aceptan "pensar poco" (se detecta solo la primera vez). */
+    private val sinNivelDePensamiento = mutableSetOf<String>()
+
+    private fun cuerpo(modelo: String): String {
+        val gen = JSONObject().put("maxOutputTokens", 1024)
+        // Pensar poco = responder mucho más rápido. Para un asistente de voz alcanza y sobra.
+        if (modelo !in sinNivelDePensamiento) gen.put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
+        return JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", personalidad()))))
             .put("contents", JSONArray(historial))
             .put("tools", herramientasGemini)
-            .put("generationConfig", JSONObject().put("maxOutputTokens", 1024))
+            .put("generationConfig", gen)
             .toString()
+    }
+
+    private fun llamarApi(): JSONObject {
         for (modelo in (listOf(prefs.modelo) + respaldo).distinct()) {
-            val req = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent")
-                .header("x-goog-api-key", prefs.apiKey)
-                .post(cuerpo.toRequestBody("application/json".toMediaType()))
-                .build()
-            http.newCall(req).execute().use { r ->
-                val txt = r.body?.string().orEmpty()
-                if (r.code == 429 || r.code == 404 || r.code == 503) return@use   // probar el siguiente modelo
-                if (!r.isSuccessful) throw IllegalStateException("Gemini ${r.code}: ${txt.take(300)}")
-                return JSONObject(txt)
+            for (intento in 0..1) {
+                val req = Request.Builder()
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent")
+                    .header("x-goog-api-key", prefs.apiKey)
+                    .post(cuerpo(modelo).toRequestBody("application/json".toMediaType()))
+                    .build()
+                val (codigo, txt) = http.newCall(req).execute().use { r -> r.code to r.body?.string().orEmpty() }
+                if (codigo in 200..299) return JSONObject(txt)
+                if (codigo == 400 && "thinking" in txt.lowercase() && modelo !in sinNivelDePensamiento) {
+                    sinNivelDePensamiento.add(modelo); continue          // reintenta sin esa opción
+                }
+                if (codigo == 429 || codigo == 404 || codigo == 503) break  // sin cuota o no existe: siguiente modelo
+                throw IllegalStateException("Gemini $codigo: ${txt.take(300)}")
             }
         }
         throw SinCuota()

@@ -10,7 +10,6 @@ import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -57,11 +56,10 @@ class MainActivity : AppCompatActivity() {
         val modelo = campo("Modelo", prefs.modelo)
         val limite = campo("Límite de consultas por hora (0 = sin límite)", prefs.limitePorHora.toString())
             .apply { inputType = InputType.TYPE_CLASS_NUMBER }
-        val pitidos = CheckBox(this).apply { text = "Silenciar el bip del micrófono en modo espera"; isChecked = prefs.silenciarPitidos; col.addView(this) }
         boton("Guardar") {
             prefs.apiKey = key.text.toString(); prefs.nombre = nombre.text.toString()
             prefs.usuario = usuario.text.toString(); prefs.ciudad = ciudad.text.toString()
-            prefs.modelo = modelo.text.toString(); prefs.silenciarPitidos = pitidos.isChecked
+            prefs.modelo = modelo.text.toString()
             prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 60
             title = prefs.nombre
             mostrar("Guardado. Reiniciá el asistente para aplicar el nombre nuevo.")

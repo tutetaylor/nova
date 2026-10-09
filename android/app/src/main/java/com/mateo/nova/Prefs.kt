@@ -33,9 +33,6 @@ class Prefs(ctx: Context) {
     var marcasUso: String
         get() = sp.getString("marcas_uso", "") ?: ""
         set(v) = sp.edit().putString("marcas_uso", v).apply()
-    var silenciarPitidos: Boolean
-        get() = sp.getBoolean("silenciar_pitidos", true)
-        set(v) = sp.edit().putBoolean("silenciar_pitidos", v).apply()
 }
 
 fun normalizar(s: String): String =
