@@ -20,6 +20,15 @@
         <item name="android:textCursorDrawable">@drawable/cursor</item>
     </style>
 
+    <!-- Invisible: solo para prender la pantalla -->
+    <style name="Theme.Nova.Transparente" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <!-- Títulos de sección en ajustes -->
     <style name="Nova.Seccion" parent="">
         <item name="android:textSize">15sp</item>
