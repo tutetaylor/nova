@@ -123,7 +123,102 @@ toca, escribe y repite hasta terminar.
 
 ---
 
+## Ojos y oídos
+
+- **Ver la pantalla:** *"Nova, ¿qué hay en esta foto?"*, *"¿qué dice este error?"*. Saca una captura y Gemini
+  la mira. En el celular también la usa para encontrar y tocar íconos sin nombre (necesita Android 11 o más
+  y el control de pantalla activado). En la PC funciona igual con lo que tengas abierto.
+- **Ver con la cámara:** *"Nova, ¿qué es esto?"*, *"leeme este cartel"*, *"traducime el menú"*. Se abre la
+  cámara, saca la foto sola a los 2 segundos (o tocá la pantalla) y te dice qué ve.
+- **Te lee los mensajes que llegan** (WhatsApp, Instagram, Telegram, SMS y más) y te escucha por si querés
+  responder: *"respondele que llego en 10"*. Responde desde la notificación, sin abrir la app. No lee si
+  estás en una llamada, en "No molestar" o charlando con Nova. Se apaga en Ajustes.
+- **Resumen:** *"¿Qué me perdí?"* te resume los mensajes sin leer, chat por chat.
+
+Para los mensajes hay que activar **Leer tus mensajes** en Ajustes → Para que funcione.
+
+## Memoria y datos
+
+- **Memoria:** *"acordate que mi hermana se llama Sofi"*. Lo recuerda para siempre y lo usa cuando viene al caso.
+  *"¿Qué sabés de mí?"*, *"olvidate de eso"*.
+- **Listas:** *"agregá leche y yerba"*, *"¿qué me falta comprar?"*, *"sacá el pan"*. Cualquier lista: pelis, regalos…
+- **Gastos:** *"gasté 5 lucas en el súper"*, *"¿cuánto gasté este mes?"*, *"¿y en salidas?"*.
+- **Agenda:** *"¿qué tengo mañana?"*, *"agendá dentista el jueves a las 10"* (usa el calendario del celular).
+- **Avisos:** *"recordame todos los días a las 22 tomar agua"*, *"de lunes a viernes a las 8"*. Suenan aunque Nova
+  esté apagada y sobreviven a un reinicio.
+- **Rutina de buen día:** decí *"buen día"* y te cuenta clima, agenda, avisos y pendientes. Para que sea automática:
+  *"todos los días a las 8 haceme la rutina de buen día"*.
+
+## Automatizaciones
+
+Se crean hablando: *"cuando pase X, hacé Y"*. El "hacé Y" es en palabras y Nova lo hace con todas sus herramientas.
+
+- **Rutinas por voz:** *"creá el modo dormir: no molestar, alarma 7:30 y brillo al mínimo"* → después decís *"modo dormir"*.
+- **Al conectar:** auriculares, un Bluetooth en particular (el del auto), el cargador, o cuando la batería baja de X%.
+- **Al llegar o salir:** primero *"guardá este lugar como casa"* (estando ahí), después *"cuando llegue a casa…"*.
+- **Mensajes:** *"cuando me escriba mamá, avisame aunque esté en no molestar"*.
+- **A una hora:** *"todos los días a las 23 activá el modo dormir"*.
+- *"¿Qué automatizaciones tengo?"*, *"borrá la 3"*.
+
+En la PC: rutinas por voz (*"creá el modo estudio: abrí VS Code y poné música lofi"*).
+
+## Personalidad y foco
+
+- **Voz natural en el celular:** Elena o Tomás de Argentina, igual que en la PC. Se elige en Ajustes › Voz. Si no hay
+  internet o el servicio falla, usa sola la voz del sistema.
+- **Personalidad:** cálida, graciosa, seria, motivadora, sarcástica, o una que escribas vos. En Ajustes o por voz:
+  *"ponete graciosa"*.
+- **Modo estudio:** *"tomame examen de estadística"*. Pregunta de a una, corrige y lleva la cuenta. Terminás con *"chau"*.
+- **Pomodoro:** *"25 minutos de estudio de análisis"*. Silencia el celular durante el foco, avisa los descansos y anota
+  cuánto estudiaste: *"¿cuánto estudié esta semana?"*.
+- **DJ:** *"poneme algo para cocinar"*. Elige la música según el momento y tus gustos.
+- **Cuentos y podcast:** *"contame un cuento"*, *"armame un podcast con las noticias de hoy"*.
+
+## Conexiones
+
+- **Vincular PC y celular:** en la PC, Ajustes › Conexiones › **Copiar** el código. En el celular, pegalo en
+  Ajustes › Conexiones › Código de la PC y guardá. Funciona desde cualquier lugar y todo va cifrado.
+- **Desde el celular:** *"en la compu poné música"*, *"bloqueá la PC"*, *"¿qué hay en la pantalla de la compu?"*.
+- **Desde la PC:** *"¿dónde está mi celular?"* (suena fuerte aunque esté en silencio), *"en el celular mandale un
+  WhatsApp a Juan"*.
+- **Prender la pantalla:** *"prendé la pantalla"*. Con Extend Unlock queda abierta; si no, pide huella o PIN.
+- **Actualización automática:** creá un token en GitHub (Settings › Developer settings › Fine-grained tokens ›
+  solo tu repo nova, permiso **Contents: Read-only**). Cargá repo y token en Ajustes › Conexiones, en la PC y en
+  el celular. Cada vez que abrís Nova se fija si hay versión nueva y te ofrece instalarla.
+
+## Servicios externos
+
+- **Casa inteligente:** *"apagá la luz del cuarto"*. La primera vez te pregunta qué app usás (Google Home, Smart Life,
+  Tuya…) y la maneja con la pantalla. Funciona con cualquier marca. Desde la PC lo hace a través del celular.
+- **Mail:** *"¿tengo mails importantes?"*. Resume los avisos de Gmail; para leer o responder uno, abre Gmail.
+- **Modo manejo:** *"modo manejo"*. Pantalla con botones gigantes, siempre prendida, y respuestas cortísimas. Ideal
+  como automatización al conectar el Bluetooth del auto.
+- **Precios:** *"seguí el precio de este producto"* + el link de Mercado Libre. Revisa todos los días y avisa si baja.
+- **Envíos:** *"guardá el envío del teclado, código …"*. Para ver el estado abre la app de la empresa.
+
+## Envíos masivos por WhatsApp
+
+Por ejemplo: *"Nova, escaneá los números de las últimas 10 capturas y mandales mi CV Mateo Taylor CHEF con el mensaje predeterminado"*.
+
+**La primera vez** (se hace una sola vez):
+1. En Ajustes de Nova, activá **Fotos y capturas** y elegí «Permitir todo».
+2. Decí *"guardá mi CV"*. Se abren tus archivos: elegí el PDF y queda guardado.
+3. Dictá tu mensaje fijo: *"guardá como mensaje predeterminado: Hola {nombre}, soy Mateo, cocinero, les dejo mi CV por si buscan gente…"*. Donde dice `{nombre}`, Nova pone el nombre del restaurante o de la persona si lo ve en la captura.
+
+**Cómo funciona:**
+- Lee las capturas (de a 5 por consulta a Gemini) y saca los teléfonos, con el nombre del lugar si aparece. Los acomoda al formato de WhatsApp: le saca el 0 y el 15 y le agrega el 549.
+- **Antes de mandar te dice** cuántos encontró y de quién, y te pregunta. Eso pasa siempre, aunque estés en modo libre. Podés decir *"sacá el tercero"* o *"sacá al de Don Julio"*.
+- Con tu *sí*, manda **uno por uno**: el mensaje, el documento y espera unos 10 a 15 segundos hasta el siguiente. Tarda unos 25 segundos por persona. Mientras manda, el celular tiene que estar desbloqueado y conviene no tocarlo.
+- *"Pará el envío"* lo corta. *"¿Cómo va el envío?"* te dice por dónde va.
+- **Recuerda a quién le mandaste cada documento**, así no le mandás el CV dos veces al mismo lugar. Si querés mandarlo igual, decí *"mandalo aunque ya se lo haya mandado"*.
+- No manda los números incompletos, por ejemplo uno que dice "15 2345 6789" sin característica. Te los lista aparte.
+- Manda hasta 40 por tanda.
+
+**Ojo con WhatsApp:** si mandás muchos mensajes iguales a gente que no te tiene agendado, WhatsApp puede limitar o bloquear tu número, sobre todo si varios te reportan. Por eso las pausas y el tope. Conviene ir de a tandas chicas (10 a 20 por día) y que el mensaje sea personal y corto.
+
 ## Modo charla y modo libre
+
+**Conversación libre:** Nova habla de cualquier tema (sexo, drogas, política, religión, salud, plata, temas oscuros o polémicos), de frente y sin sermones. Si le pedís su opinión, te la da. Además, los filtros de contenido de Gemini están al mínimo que deja Google. Lo único que Google bloquea siempre, por más que se lo pidas: ahí Nova te avisa que no se lo dejan responder.
 
 - **Modo charla:** decí *"Nova, charlemos"* o tocá **Charlar**. Desde ahí es una conversación continua:
   hablás, te responde, y te sigue escuchando sin que digas "Nova" de nuevo. Charla como un amigo, te

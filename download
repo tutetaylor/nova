@@ -16,3 +16,5 @@ android/.idea/
 *.iml
 *.apk
 *.keystore
+!android/app/nova.keystore
+pc/version.txt
