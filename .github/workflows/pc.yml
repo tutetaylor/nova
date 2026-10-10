@@ -31,13 +31,22 @@ jobs:
         working-directory: pc
         env:
           GEMINI_API_KEY: clave-de-prueba-para-importar
-        run: python -c "import config, herramientas, cerebro, voz, rapidos, nucleo, app, instalar_modelo, webview; print(len(herramientas.REGISTRO), 'herramientas OK')"
+        run: python -c "import config, herramientas, cerebro, voz, rapidos, nucleo, app, instalar_modelo, libreta, vinculo, actualizar, webview; print(len(herramientas.REGISTRO), 'herramientas OK')"
+
+      - name: Grabar el número de versión
+        working-directory: pc
+        shell: bash
+        run: echo "${{ github.run_number }}" > version.txt
 
       - name: Armar Nova.exe (con ventana)
         working-directory: pc
         run: >
           pyinstaller main.py --onefile --windowed --name Nova --noconfirm
           --add-data "interfaz;interfaz"
+          --add-data "version.txt;."
+          --hidden-import actualizar
+          --hidden-import vinculo
+          --hidden-import libreta
           --collect-all vosk
           --collect-all edge_tts
           --collect-all webview
@@ -56,4 +65,4 @@ jobs:
           gh release delete pc-ultima --yes --cleanup-tag || true
           gh release create pc-ultima Nova.exe \
             --title "Nova para PC - última versión" \
-            --notes "Compilada desde ${GITHUB_SHA::7}. Bajá Nova.exe y abrilo con doble clic. La primera vez te pide la clave gratis de Gemini en los ajustes."
+            --notes "Versión 1.${{ github.run_number }}, compilada desde ${GITHUB_SHA::7}. Bajá Nova.exe y abrilo con doble clic. La primera vez te pide la clave gratis de Gemini en los ajustes."
