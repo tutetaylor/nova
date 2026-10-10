@@ -210,6 +210,11 @@
   .ayuda a { color: var(--nebulosa); text-decoration: none; }
   .ayuda a:hover { text-decoration: underline; }
 
+  .codigo { display: flex; gap: 10px; align-items: center; }
+  .codigo code {
+    flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; letter-spacing: .04em;
+    background: var(--cielo); border: 1px solid var(--linea); border-radius: 14px; padding: 12px 14px; color: var(--estrella);
+  }
   .paso { display: flex; align-items: center; gap: 14px; padding: 10px 0; }
   .paso + .paso { border-top: 1px solid var(--linea); }
   .paso .num {
@@ -339,6 +344,18 @@
         </select>
       </div>
       <div class="campo">
+        <label for="fPersonalidad">Personalidad</label>
+        <select id="fPersonalidad">
+          <option value="calida">Cálida</option>
+          <option value="graciosa">Graciosa</option>
+          <option value="seria">Seria y directa</option>
+          <option value="motivadora">Motivadora</option>
+          <option value="sarcastica">Sarcástica</option>
+          <option value="propia">Propia…</option>
+        </select>
+        <input id="fPersonalidadPropia" placeholder="Ej: una porteña fanática del fútbol que habla rápido" style="margin-top:10px;display:none">
+      </div>
+      <div class="campo">
         <label class="interruptor" for="fConfirmar">
           <input type="checkbox" id="fConfirmar">
           <span class="riel"></span>
@@ -347,6 +364,33 @@
             <span class="ayuda" id="ayudaConfirmar"></span>
           </span>
         </label>
+      </div>
+    </div>
+
+    <div class="seccion">Conexiones</div>
+    <div class="grupo">
+      <div class="campo">
+        <label>Código para el celular</label>
+        <div class="codigo">
+          <code id="codigoVinculo">…</code>
+          <button class="boton secundario" type="button" id="copiarCodigo">Copiar</button>
+        </div>
+        <p class="ayuda">Pegalo en Nova del celular › Ajustes › Conexiones. Así manejás la PC desde el celular y
+          encontrás el celular desde acá, desde cualquier lugar y todo cifrado. <a href="#" id="nuevoCodigo">Generar otro código</a>
+          (desvincula el anterior).</p>
+      </div>
+      <div class="campo">
+        <label for="fRepo">Repo de GitHub</label>
+        <input id="fRepo" placeholder="usuario/nova">
+      </div>
+      <div class="campo">
+        <label for="fToken">Token de GitHub (solo lectura)</label>
+        <input id="fToken" type="password" placeholder="github_pat_…">
+        <p class="ayuda">Para que Nova se actualice sola desde tu repo privado.</p>
+      </div>
+      <div class="campo">
+        <button class="boton secundario" type="button" id="buscarActualizacion" style="width:100%;height:46px">Buscar actualización</button>
+        <p class="ayuda" id="versionTexto" style="text-align:center"></p>
       </div>
     </div>
 
@@ -567,6 +611,22 @@ function textoConfirmar() {
     : "Modo libre: hace todo directo. Igual pregunta antes de pagar o borrar archivos.";
 }
 $("fConfirmar").onchange = textoConfirmar;
+$("fPersonalidad").onchange = () => {
+  $("fPersonalidadPropia").style.display = $("fPersonalidad").value === "propia" ? "" : "none";
+  if ($("fPersonalidad").value === "propia") $("fPersonalidadPropia").focus();
+};
+
+function avisoActualizacion(texto) {
+  $("aviso").classList.add("visible");
+  $("avisoTitulo").textContent = "Versión nueva disponible";
+  $("avisoTexto").textContent = texto;
+  $("avisoBoton").textContent = "Actualizar";
+  $("avisoBoton").onclick = async () => {
+    $("avisoBoton").disabled = true; $("avisoBoton").textContent = "Descargando…";
+    const r = await api()?.instalar_actualizacion();
+    $("avisoTexto").textContent = r; $("avisoBoton").disabled = false; $("avisoBoton").textContent = "Actualizar";
+  };
+}
 
 function mostrarAviso() {
   const falta = !datos.clave;
@@ -593,6 +653,7 @@ window.nova = {
     else if (tipo === "parcial") { $("parcial").textContent = d.texto; $("parcial").classList.toggle("visible", !!d.texto); }
     else if (tipo === "nivel") Estrella.nivel = d.nivel;
     else if (tipo === "charla") { datos.charla = d.activa; mostrarCharla(); }
+    else if (tipo === "actualizacion") avisoActualizacion(d.texto);
   },
 };
 
@@ -647,10 +708,16 @@ function dibujarPasos() {
 function abrirAjustes() {
   $("fNombre").value = datos.nombre; $("fUsuario").value = datos.usuario; $("fCiudad").value = datos.ciudad;
   $("fConfirmar").checked = datos.confirmar !== false; textoConfirmar();
+  $("fPersonalidad").value = datos.personalidad || "calida";
+  $("fPersonalidadPropia").value = datos.personalidadPropia || "";
+  $("fPersonalidadPropia").style.display = $("fPersonalidad").value === "propia" ? "" : "none";
   $("fVoz").value = datos.voz; $("fClave").value = datos.clave; $("fLimite").value = datos.limite; $("fModelo").value = datos.modelo;
   $("uso").textContent = datos.limite > 0
     ? `Usaste ${datos.usadas} de ${datos.limite} en la última hora. 0 = sin límite.`
     : `Sin límite propio. Usaste ${datos.usadas} en la última hora.`;
+  $("codigoVinculo").textContent = datos.vinculo || "…";
+  $("fRepo").value = datos.repo || ""; $("fToken").value = datos.token || "";
+  $("versionTexto").textContent = datos.version ? `Tenés la versión 1.${datos.version}` : "Versión de desarrollo (desde el código)";
   dibujarPasos();
   $("panel").classList.add("abierto"); $("velo").classList.add("abierto");
   $("panel").setAttribute("aria-hidden", "false");
@@ -665,12 +732,35 @@ $("abrirAjustes").onclick = abrirAjustes;
 $("cerrarAjustes").onclick = cerrarAjustes;
 $("velo").onclick = cerrarAjustes;
 addEventListener("keydown", e => { if (e.key === "Escape" && $("panel").classList.contains("abierto")) cerrarAjustes(); });
+$("copiarCodigo").onclick = async () => {
+  try { await navigator.clipboard.writeText(datos.vinculo); } catch (e) {
+    const r = document.createRange(); r.selectNodeContents($("codigoVinculo"));
+    getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand("copy");
+  }
+  $("copiarCodigo").textContent = "Copiado"; setTimeout(() => $("copiarCodigo").textContent = "Copiar", 1500);
+};
+$("nuevoCodigo").onclick = async e => {
+  e.preventDefault();
+  datos.vinculo = await api()?.nuevo_codigo_vinculo();
+  $("codigoVinculo").textContent = datos.vinculo;
+};
+$("buscarActualizacion").onclick = async () => {
+  const b = $("buscarActualizacion");
+  await api()?.guardar_ajustes({ REPO: $("fRepo").value, TOKEN_GITHUB: $("fToken").value });
+  b.disabled = true; b.textContent = "Buscando…";
+  const r = await api()?.buscar_actualizacion();
+  b.disabled = false; b.textContent = "Buscar actualización";
+  $("versionTexto").textContent = r.texto;
+  if (r.hay) { cerrarAjustes(); avisoActualizacion(r.texto); }
+};
 $("linkClave").onclick = e => { e.preventDefault(); api()?.abrir_link("https://aistudio.google.com/apikey"); };
 
 $("guardar").onclick = async () => {
   const cambios = {
     NOMBRE: $("fNombre").value, USUARIO: $("fUsuario").value, CIUDAD: $("fCiudad").value, VOZ: $("fVoz").value,
     CONFIRMAR: $("fConfirmar").checked ? "1" : "0",
+    REPO: $("fRepo").value, TOKEN_GITHUB: $("fToken").value,
+    PERSONALIDAD: $("fPersonalidad").value, PERSONALIDAD_PROPIA: $("fPersonalidadPropia").value,
     GEMINI_API_KEY: $("fClave").value, LIMITE_POR_HORA: $("fLimite").value || "60", MODELO: $("fModelo").value,
   };
   const nuevo = await api()?.guardar_ajustes(cambios);
