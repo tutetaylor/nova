@@ -33,6 +33,9 @@ class Puente:
             "usadas": usadas, "vozOffline": Path(config.VOSK_MODELO).exists(),
             "estado": n.estado, "detalle": n.detalle, "conversacion": n.conversacion,
             "charla": n.charla, "confirmar": config.CONFIRMAR,
+            "personalidad": config.PERSONALIDAD, "personalidadPropia": config.PERSONALIDAD_PROPIA,
+            "vinculo": config.VINCULO, "repo": config.REPO, "token": config.TOKEN_GITHUB,
+            "version": __import__("actualizar").version_actual(),
         }
 
     def enviar(self, texto):
@@ -53,6 +56,28 @@ class Puente:
     def guardar_ajustes(self, cambios):
         self._app.nucleo.aplicar_ajustes(dict(cambios))
         return self.iniciar()
+
+    def buscar_actualizacion(self):
+        import actualizar
+        url, texto = actualizar.revisar()
+        return {"hay": bool(url), "texto": texto}
+
+    def instalar_actualizacion(self):
+        import actualizar
+        url, texto = actualizar.revisar()
+        if not url:
+            return texto
+        r = actualizar.descargar_e_instalar(url)
+        if r == "SALIR":
+            self._app.ventana.destroy()
+            return "Actualizando…"
+        return r
+
+    def nuevo_codigo_vinculo(self):
+        from vinculo import codigo_nuevo
+        config.guardar({"VINCULO": codigo_nuevo()})
+        self._app.nucleo._conectar_celular()
+        return config.VINCULO
 
     def abrir_link(self, url):
         if str(url).startswith("https://"):
@@ -75,6 +100,14 @@ class App:
         self._lista.set()
         if config.GEMINI_API_KEY:
             self.nucleo.encender()        # con la clave cargada, arranca escuchando
+        threading.Thread(target=self._revisar_actualizacion, daemon=True).start()
+
+    def _revisar_actualizacion(self):
+        """Al abrir, se fija si hay versión nueva (solo si cargaste repo y token) y lo avisa en la ventana."""
+        import actualizar
+        url, texto = actualizar.revisar()
+        if url:
+            self.emitir("actualizacion", {"texto": texto})
 
     def emitir(self, tipo, datos):
         """Avisa a la ventana lo que pasa (estado, mensajes, volumen de tu voz)."""

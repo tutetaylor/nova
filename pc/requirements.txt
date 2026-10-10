@@ -10,3 +10,4 @@ pyttsx3
 pyautogui
 pyperclip
 pywebview
+cryptography

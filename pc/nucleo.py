@@ -21,6 +21,11 @@ PARA_CHARLAR = {"charlemos", "hablemos", "modo charla", "quiero charlar", "charl
                 "quiero hablar", "quiero hablar con vos", "charlemos un poco", "hablemos un poco"}
 PARA_TERMINAR_CHARLA = PARA_CORTAR | {"terminamos", "termina la charla", "basta", "fin de la charla", "nos vemos",
                                       "hasta luego", "me voy", "despues seguimos"}
+RUTINA_BUEN_DIA = ("Rutina de buen día: saludame según la hora, contame el clima de hoy, mis recordatorios de hoy y si tengo "
+                   "algo en la lista de pendientes, y cerrá con una frase linda. Todo en 4 a 6 oraciones, natural, como un amigo. "
+                   "Usá clima, ver_recordatorios y lista_ver.")
+PARA_BUEN_DIA = {"buen dia", "buenos dias", "buen dia nova", "arranquemos el dia", "arrancamos el dia",
+                 "como arranca el dia", "que tengo hoy", "resumen del dia"}
 APERTURAS = ["¡Dale, charlemos! ¿Cómo venís hoy, {u}?", "¡Me encanta! Contame, ¿qué estuviste haciendo hoy?",
              "¡De una! ¿De qué tenés ganas de hablar, {u}?", "Acá estoy. ¿Cómo te trató el día?"]
 
@@ -49,6 +54,9 @@ class Nucleo:
         self.charla = False                    # modo charla: conversación continua, sin decir el nombre
         self._abrir_charla = False             # al entrar tocando el botón, Nova saluda primero
         herramientas.avisar = self._recordatorio
+        herramientas.al_modo_estudio = self._modo_estudio
+        self.vinculo = None
+        self._conectar_celular()
         herramientas.iniciar_recordatorios()
         self._preparar_cerebro()
 
@@ -66,7 +74,14 @@ class Nucleo:
         self.charla = activa
         if self.cerebro:
             self.cerebro.charla = activa
+            if not activa:
+                self.cerebro.estudio = None
         self.emitir("charla", {"activa": activa})
+
+    def _modo_estudio(self, tema):
+        if self.cerebro:
+            self.cerebro.estudio = tema
+        self._charla(True)
 
     def alternar_charla(self):
         """Botón «Charlar» de la ventana."""
@@ -82,8 +97,16 @@ class Nucleo:
         return random.choice(APERTURAS).format(u=config.USUARIO or "")
 
     def _recordatorio(self, texto):
-        self._mensaje(False, texto)
-        self.boca.decir(texto)
+        if texto.startswith("@"):          # rutina de buen día programada
+            threading.Thread(target=self.atender, args=(RUTINA_BUEN_DIA,), daemon=True).start()
+            return
+        if texto.startswith("!"):          # aviso que hace algo (no solo avisa)
+            threading.Thread(target=self.atender, args=(f"(Aviso programado por el usuario: hacelo directamente.) {texto[1:]}",),
+                             daemon=True).start()
+            return
+        aviso = f"Te aviso: {texto}"
+        self._mensaje(False, aviso)
+        self.boca.decir(aviso)
 
     # ------------------------------------------------------------ CEREBRO
     def _preparar_cerebro(self):
@@ -92,6 +115,35 @@ class Nucleo:
             return
         from cerebro import Cerebro
         self.cerebro = Cerebro()
+
+    # ------------------------------------------------------------ CELULAR
+    def _conectar_celular(self):
+        from vinculo import Vinculo, codigo_nuevo
+        if not config.VINCULO:
+            config.guardar({"VINCULO": codigo_nuevo()})      # la primera vez se crea el código
+        if self.vinculo:
+            self.vinculo.detener()
+        self.vinculo = Vinculo(config.VINCULO, self._orden_del_celular)
+        self.vinculo.iniciar()
+        herramientas.vinculo = self.vinculo
+
+    def _orden_del_celular(self, m):
+        """El celular le pide algo a la PC: lo hace y le responde (sin hablar: vos no estás acá)."""
+        if m.get("tipo") != "orden" or not self.cerebro:
+            return
+        texto = m.get("texto", "")
+        self._mensaje(True, f"Desde el celular: {texto}")
+        with self._lock:
+            try:
+                respuesta = self.cerebro.pensar(f"(Orden que te mandó {config.USUARIO} desde su celular; no está frente a la PC, "
+                                                f"así que respondé con el resultado concreto.) {texto}")
+            except Exception as e:
+                respuesta = f"No pude hacerlo: {str(e)[:60]}"
+        self._mensaje(False, respuesta)
+        try:
+            self.vinculo.enviar("respuesta", respuesta, m.get("id"))
+        except Exception:
+            pass
 
     def configuracion_lista(self):
         return bool(config.GEMINI_API_KEY)
@@ -110,8 +162,10 @@ class Nucleo:
     def atender(self, pedido):
         """Procesa un pedido. Devuelve True si conviene seguir escuchando sin decir el nombre."""
         with self._lock:
-            self._mensaje(True, pedido)
+            self._mensaje(True, "Rutina de buen día" if pedido == RUTINA_BUEN_DIA else pedido)
             self.emitir("parcial", {"texto": ""})
+            if normalizar(pedido).strip(" .!?¿¡,") in PARA_BUEN_DIA:
+                pedido = RUTINA_BUEN_DIA
             p = normalizar(pedido).strip(" .!?¿¡,")
             if self.charla and p in PARA_TERMINAR_CHARLA:
                 self._charla(False)
@@ -128,8 +182,13 @@ class Nucleo:
                 return self._responder("Listo, empezamos de cero.")
             if "cuanto uso" in p or "limite de uso" in p:
                 return self._responder(self.cerebro.limite.resumen() if self.cerebro else "Todavía no cargaste la clave.")
+            import libreta
+            rutina = libreta.rutina_de_voz(pedido)
+            if rutina and self.cerebro:          # rutina por voz: Nova hace lo que le enseñaste
+                pedido = (f"(Rutina «{rutina['frase']}» que el usuario creó: hacelo directamente, sin preguntar, "
+                          f"salvo pagar o borrar.) {rutina['hacer']}. Al terminar, confirmá en una oración corta.")
             try:
-                rapido = rapidos.intentar(pedido)
+                rapido = None if rutina else rapidos.intentar(pedido)
             except Exception as e:
                 print("Atajo falló:", e)
                 rapido = None
