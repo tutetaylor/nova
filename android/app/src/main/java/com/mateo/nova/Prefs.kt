@@ -42,6 +42,50 @@ class Prefs(ctx: Context) {
         get() = sp.getString("marcas_uso", "") ?: ""
         set(v) = sp.edit().putString("marcas_uso", v).apply()
 
+    /** Anota una consulta (para el límite por hora). */
+    fun registrarUso() {
+        val haceUnaHora = System.currentTimeMillis() - 3_600_000
+        val m = marcasUso.split(",").mapNotNull { it.toLongOrNull() }.filter { it > haceUnaHora } + System.currentTimeMillis()
+        marcasUso = m.joinToString(",")
+    }
+
+    /** Voz: un nombre de VozNatural.VOCES, o "sistema". */
+    var voz: String
+        get() = sp.getString("voz", "es-AR-ElenaNeural") ?: "es-AR-ElenaNeural"
+        set(v) = sp.edit().putString("voz", v).apply()
+    /** Estilo de personalidad: una clave de Personalidad.ESTILOS, o "propia". */
+    var personalidad: String
+        get() = sp.getString("personalidad", "calida") ?: "calida"
+        set(v) = sp.edit().putString("personalidad", v).apply()
+    var personalidadPropia: String
+        get() = sp.getString("personalidad_propia", "") ?: ""
+        set(v) = sp.edit().putString("personalidad_propia", v.trim()).apply()
+
+    /** Código de vinculación con la PC (lo muestra Nova en la PC, en Ajustes). */
+    var codigoVinculo: String
+        get() = sp.getString("codigo_vinculo", "") ?: ""
+        set(v) = sp.edit().putString("codigo_vinculo", v.trim()).apply()
+    /** Repo de GitHub (usuario/repo) y token de solo lectura, para buscar actualizaciones. */
+    var repo: String
+        get() = sp.getString("repo", "") ?: ""
+        set(v) = sp.edit().putString("repo", v.trim().removePrefix("https://github.com/").trim('/')).apply()
+    var tokenGithub: String
+        get() = sp.getString("token_github", "") ?: ""
+        set(v) = sp.edit().putString("token_github", v.trim()).apply()
+    var ultimaRevision: Long
+        get() = sp.getLong("ultima_revision", 0)
+        set(v) = sp.edit().putLong("ultima_revision", v).apply()
+
+    /** App que maneja las luces y aparatos de la casa (Google Home, Smart Life, Tuya…). */
+    var appCasa: String
+        get() = sp.getString("app_casa", "") ?: ""
+        set(v) = sp.edit().putString("app_casa", v.trim()).apply()
+
+    /** Leer en voz alta los mensajes que llegan. */
+    var leerMensajes: Boolean
+        get() = sp.getBoolean("leer_mensajes", true)
+        set(v) = sp.edit().putBoolean("leer_mensajes", v).apply()
+
     /** Consultas hechas en la última hora. */
     fun usoUltimaHora(): Int {
         val haceUnaHora = System.currentTimeMillis() - 3_600_000

@@ -33,6 +33,11 @@ class Comandos(private val h: Herramientas) {
         if (Regex("^(cuanta )?bateria( tengo| me queda)?$").matches(p) || p == "cuanta bateria tengo")
             return "Tenés " + ej("bateria") + "."
 
+        // ---------- Pantalla
+        if (Regex("^(prende|encende|despertá|desperta|activa) (la )?pantalla$").matches(p)) { ej("prender_pantalla"); return "" }
+
+        if (Regex("^(modo manejo|modo auto|voy a manejar|estoy manejando)$").matches(p)) { ej("modo_manejo", "activar" to true); return "" }
+
         // ---------- Linterna
         if (Regex("(prende|prendé|encende|activa|pone) (la )?linterna").containsMatchIn(p))
             return ej("linterna", "encender" to true).let { if (it.startsWith("Linterna")) "Listo." else it }

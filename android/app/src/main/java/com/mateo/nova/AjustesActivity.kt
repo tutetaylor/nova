@@ -32,7 +32,11 @@ class AjustesActivity : AppCompatActivity() {
     private lateinit var clave: EditText
     private lateinit var limite: EditText
     private lateinit var modelo: EditText
+    private lateinit var codigoVinculo: EditText
+    private lateinit var repo: EditText
+    private lateinit var tokenGithub: EditText
     private lateinit var confirmar: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var leerMensajes: com.google.android.material.materialswitch.MaterialSwitch
 
     private val pedirPermisos = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         dibujarPasos()
@@ -65,6 +69,27 @@ class AjustesActivity : AppCompatActivity() {
         limite.setText(prefs.limitePorHora.toString())
         modelo.setText(prefs.modelo)
 
+        codigoVinculo = findViewById(R.id.codigoVinculo); codigoVinculo.setText(prefs.codigoVinculo)
+        repo = findViewById(R.id.repo); repo.setText(prefs.repo)
+        tokenGithub = findViewById(R.id.tokenGithub); tokenGithub.setText(prefs.tokenGithub)
+        findViewById<TextView>(R.id.versionActual).text = "Tenés la versión 1.${Actualizador.versionActual(this)}"
+        findViewById<View>(R.id.buscarActualizacion).setOnClickListener { boton ->
+            prefs.repo = repo.text.toString(); prefs.tokenGithub = tokenGithub.text.toString()
+            boton.isEnabled = false
+            Thread {
+                val (novedad, texto) = Actualizador.revisar(this)
+                runOnUiThread {
+                    boton.isEnabled = true
+                    if (novedad == null) Toast.makeText(this, texto, Toast.LENGTH_LONG).show()
+                    else AlertDialog.Builder(this).setTitle("Versión nueva").setMessage("$texto ¿La instalo?")
+                        .setPositiveButton("Actualizar") { _, _ ->
+                            Thread { val r = Actualizador.descargarEInstalar(this, novedad)
+                                runOnUiThread { Toast.makeText(this, r, Toast.LENGTH_LONG).show() } }.start()
+                        }.setNegativeButton("Después", null).show()
+                }
+            }.start()
+        }
+
         confirmar = findViewById(R.id.confirmar)
         confirmar.isChecked = prefs.confirmar
         val ayuda = findViewById<TextView>(R.id.ayudaConfirmar)
@@ -80,7 +105,21 @@ class AjustesActivity : AppCompatActivity() {
         textoAyuda(confirmar.isChecked)
         confirmar.setOnCheckedChangeListener { _, on -> textoAyuda(on) }
 
+        leerMensajes = findViewById(R.id.leerMensajes)
+        leerMensajes.isChecked = prefs.leerMensajes
+        fun colorLeer(on: Boolean) {
+            leerMensajes.trackTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (on) R.color.estrella else R.color.linea))
+            leerMensajes.thumbTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (on) R.color.sobre_estrella else R.color.bruma))
+        }
+        colorLeer(leerMensajes.isChecked)
+        leerMensajes.setOnCheckedChangeListener { _, on -> colorLeer(on) }
+
         findViewById<View>(R.id.atras).setOnClickListener { finish() }
+        mostrarVozYPersonalidad()
+        findViewById<View>(R.id.filaVoz).setOnClickListener { elegirVoz() }
+        findViewById<View>(R.id.filaPersonalidad).setOnClickListener { elegirPersonalidad() }
         findViewById<View>(R.id.guardar).setOnClickListener { guardar() }
         findViewById<View>(R.id.linkClave).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey")))
@@ -135,6 +174,22 @@ class AjustesActivity : AppCompatActivity() {
         when (tipo) {
             Pasos.Tipo.MICROFONO -> pedirPermisos.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
             Pasos.Tipo.TELEFONO -> pedirPermisos.launch(Pasos.permisosTelefono)
+            Pasos.Tipo.AGENDA -> pedirPermisos.launch(Pasos.permisosAgenda)
+            Pasos.Tipo.FOTOS -> pedirPermisos.launch(Pasos.permisosFotos)
+            Pasos.Tipo.BLUETOOTH -> pedirPermisos.launch(arrayOf(Manifest.permission.BLUETOOTH_CONNECT))
+            Pasos.Tipo.UBICACION ->
+                // Android pide en dos pasos: primero "mientras se usa" y después "todo el tiempo"
+                if (!Automatizaciones.tienePermisoUbicacion(this))
+                    pedirPermisos.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                else AlertDialog.Builder(this)
+                    .setTitle("Ubicación todo el tiempo")
+                    .setMessage("En la pantalla que se abre elegí «Permitir todo el tiempo». Nova solo la usa para saber " +
+                        "si llegaste o saliste de los lugares que guardaste; no la guarda ni la manda a ningún lado.")
+                    .setPositiveButton("Continuar") { _, _ ->
+                        pedirPermisos.launch(arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION))
+                    }
+                    .setNegativeButton("Ahora no", null)
+                    .show()
             Pasos.Tipo.NOTIFICACIONES -> pedirPermisos.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
             Pasos.Tipo.BATERIA -> runCatching { startActivity(Pasos.intentBateria(this)) }
                 .onFailure { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
@@ -148,8 +203,53 @@ class AjustesActivity : AppCompatActivity() {
                 }
                 .setNegativeButton("Ahora no", null)
                 .show()
+            Pasos.Tipo.MENSAJES -> AlertDialog.Builder(this)
+                .setTitle("Leer tus mensajes")
+                .setMessage("En la pantalla que se abre, buscá «${prefs.nombre}» y activalo.\n\n" +
+                    "Nova solo usa los mensajes para leértelos y responderlos cuando se lo pedís; no se guardan ni se mandan a ningún lado " +
+                    "salvo a Gemini cuando le pedís un resumen.\n\n" +
+                    "Si Android dice «configuración restringida»: Ajustes › Apps › ${prefs.nombre} › ⋮ › Permitir configuración restringida.")
+                .setPositiveButton("Ir a los ajustes") { _, _ ->
+                    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }
+                .setNegativeButton("Ahora no", null)
+                .show()
             Pasos.Tipo.CLAVE -> clave.requestFocus()
         }
+    }
+
+    // ------------------------------------------------------------ VOZ Y PERSONALIDAD
+    private fun mostrarVozYPersonalidad() {
+        findViewById<TextView>(R.id.filaVozValor).text = VozNatural.VOCES[prefs.voz] ?: prefs.voz
+        findViewById<TextView>(R.id.filaPersonalidadValor).text =
+            if (prefs.personalidad == "propia") "Propia: ${prefs.personalidadPropia.take(40)}…"
+            else Personalidad.ESTILOS[prefs.personalidad]?.first ?: "Cálida"
+    }
+
+    private fun elegirVoz() {
+        val claves = VozNatural.VOCES.keys.toList()
+        AlertDialog.Builder(this).setTitle("Voz")
+            .setSingleChoiceItems(VozNatural.VOCES.values.toTypedArray(), claves.indexOf(prefs.voz)) { d, i ->
+                prefs.voz = claves[i]; mostrarVozYPersonalidad(); d.dismiss()
+            }.show()
+    }
+
+    private fun elegirPersonalidad() {
+        val claves = Personalidad.ESTILOS.keys.toList()
+        val nombres = Personalidad.ESTILOS.values.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this).setTitle("Personalidad")
+            .setSingleChoiceItems(nombres, claves.indexOf(prefs.personalidad)) { d, i ->
+                d.dismiss()
+                if (claves[i] != "propia") { prefs.personalidad = claves[i]; mostrarVozYPersonalidad(); return@setSingleChoiceItems }
+                val campo = EditText(this).apply {
+                    setText(prefs.personalidadPropia); hint = "Ej: una porteña fanática del fútbol que habla rápido y tira referencias"
+                    setPadding(dp(20), dp(16), dp(20), dp(16))
+                }
+                AlertDialog.Builder(this).setTitle("¿Cómo querés que sea?").setView(campo)
+                    .setPositiveButton("Guardar") { _, _ ->
+                        prefs.personalidadPropia = campo.text.toString(); prefs.personalidad = "propia"; mostrarVozYPersonalidad()
+                    }.setNegativeButton("Cancelar", null).show()
+            }.show()
     }
 
     // ------------------------------------------------------------ GUARDAR
@@ -162,9 +262,14 @@ class AjustesActivity : AppCompatActivity() {
         prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 60
         prefs.modelo = modelo.text.toString()
         prefs.confirmar = confirmar.isChecked
+        val vinculoCambio = codigoVinculo.text.toString().trim() != prefs.codigoVinculo
+        prefs.codigoVinculo = codigoVinculo.text.toString()
+        prefs.repo = repo.text.toString()
+        prefs.tokenGithub = tokenGithub.text.toString()
+        prefs.leerMensajes = leerMensajes.isChecked
 
-        // El nombre nuevo recién se escucha al reiniciar el servicio
-        if (prefs.nombre != nombreAnterior && AsistenteService.corriendo) {
+        // El nombre nuevo y el vínculo con la PC recién se aplican al reiniciar el servicio
+        if ((prefs.nombre != nombreAnterior || vinculoCambio) && AsistenteService.corriendo) {
             startService(Intent(this, AsistenteService::class.java).setAction(AsistenteService.ACCION_DETENER))
             findViewById<View>(R.id.guardar).postDelayed({
                 if (Pasos.puedeEncender(this))

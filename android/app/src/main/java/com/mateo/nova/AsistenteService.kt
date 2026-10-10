@@ -41,7 +41,13 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         const val ACCION_DETENER = "com.mateo.nova.DETENER"
         const val ACCION_TEXTO = "com.mateo.nova.TEXTO"
         const val ACCION_CHARLA = "com.mateo.nova.CHARLA"
+        const val ACCION_PARAR_SONIDO = "com.mateo.nova.PARAR_SONIDO"
 
+        private const val RUTINA_BUEN_DIA = "Rutina de buen día: saludame según la hora, contame el clima de hoy, mi agenda de hoy, " +
+            "mis avisos de hoy y si tengo algo en la lista de pendientes, y cerrá con una frase linda. Todo en 4 a 6 oraciones, " +
+            "natural, como un amigo. Usá clima, agenda_ver, avisos_ver y lista_ver."
+        private val PARA_BUEN_DIA = setOf("buen dia", "buenos dias", "buen dia nova", "arranquemos el dia", "arrancamos el dia",
+            "como arranca el dia", "que tengo hoy", "resumen del dia")
         private val PARA_CHARLAR = setOf("charlemos", "hablemos", "modo charla", "quiero charlar", "charlemos un rato",
             "hablemos un rato", "quiero hablar", "quiero hablar con vos", "charlemos un poco", "hablemos un poco")
         private val PARA_TERMINAR = setOf("nada", "chau", "gracias", "listo", "cancelar", "eso es todo", "terminamos",
@@ -61,6 +67,10 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     private lateinit var cerebro: Cerebro
     private lateinit var comandos: Comandos
     private lateinit var oido: PalabraClave
+    private lateinit var automatizaciones: Automatizaciones
+    private lateinit var vozNatural: VozNatural
+    private var turnoVoz = 0          // para ignorar audios viejos si lo interrumpiste
+    private var vinculo: Vinculo? = null
     private var oidoListo = false
     private var reco: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
@@ -68,6 +78,10 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     private var estado = Estado.ESPERA
     private var seguirDespuesDeHablar = false
     private var modoCharla = false
+    private val pendientes = mutableListOf<Notificaciones.Mensaje>()
+    private var anunciado = ""          // lo último que te leyó, para entender "respondele que sí"
+    private var anunciadoEn = 0L
+    private val anunciar = Runnable { anunciarMensajes() }
     private var silencios = 0
 
     // ------------------------------------------------------------ CICLO DE VIDA
@@ -77,12 +91,28 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         val herramientas = Herramientas(this, prefs)
         comandos = Comandos(herramientas)
         cerebro = Cerebro(prefs, herramientas).apply {
+            memoria = { Libreta.de(this@AsistenteService).memoriaParaCerebro() }
             alUsarHerramienta = { n ->
                 main.post { notificar("Usando $n…") }
                 Bus.estado(Bus.Estado.PENSANDO, descripcionHerramienta(n))
             }
         }
         oido = PalabraClave(this, prefs.nombre)
+        vozNatural = VozNatural(this)
+        Pomodoro.alHablar = { t -> main.post { if (estado == Estado.ESPERA) decir(t, seguir = false) else Bus.mensaje(false, t) } }
+        EnvioMasivo.alHablar = { t -> main.post { if (estado == Estado.ESPERA) decir(t, seguir = false) } }
+        Herramientas.alModoEstudio = { tema -> cerebro.estudio = tema; main.post { ponerCharla(true) } }
+        if (Vinculo.codigoValido(prefs.codigoVinculo)) {
+            vinculo = Vinculo(prefs.codigoVinculo) { m -> main.post { recibirDePC(m) } }.also { it.iniciar() }
+        }
+        Herramientas.vinculo = vinculo
+        Avisos.alSonar = { av -> main.post { sonoAviso(av) } }
+        automatizaciones = Automatizaciones(this) { regla, contexto -> ejecutarRegla(regla, contexto, 0) }
+        automatizaciones.iniciar()
+        Notificaciones.alLlegar = { m -> main.post {
+            automatizaciones.mensajeRecibido(m.quien, m.app, m.texto)
+            pendientes.add(m); main.removeCallbacks(anunciar); main.postDelayed(anunciar, 2500)
+        } }
         tts = TextToSpeech(this, this)
         crearCanal()
         val notif = notificacion("Decí \"${prefs.nombre}\" para hablarme")
@@ -106,12 +136,13 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         when (intent?.action) {
             ACCION_DETENER -> { prefs.quiereEncendido = false; stopSelf(); return START_NOT_STICKY }
             // Todo lo que hacés vos (encender, tocar la estrella, escribir) la deja encendida
-            ACCION_ESCUCHAR -> { prefs.quiereEncendido = true; main.post { if (estado != Estado.PENSANDO) { tts?.stop(); escucharPedido() } } }
+            ACCION_ESCUCHAR -> { prefs.quiereEncendido = true; main.post { if (estado != Estado.PENSANDO) { callar(); escucharPedido() } } }
             ACCION_TEXTO -> { prefs.quiereEncendido = true; intent?.getStringExtra(EXTRA_TEXTO)?.let { t -> main.post { procesar(t) } } }
+            ACCION_PARAR_SONIDO -> { Sonar.parar(this); return if (prefs.quiereEncendido) START_STICKY else START_NOT_STICKY }
             ACCION_CHARLA -> {
                 prefs.quiereEncendido = true
                 main.post {
-                    if (modoCharla) { ponerCharla(false); tts?.stop(); frenarReconocimiento(); esperarNombre() }
+                    if (modoCharla) { ponerCharla(false); callar(); frenarReconocimiento(); esperarNombre() }
                     else { ponerCharla(true); decir(apertura(), seguir = true) }
                 }
             }
@@ -123,6 +154,15 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         corriendo = false
+        Notificaciones.alLlegar = null
+        Avisos.alSonar = null
+        Pomodoro.alHablar = null
+        EnvioMasivo.alHablar = null
+        vinculo?.detener(); Herramientas.vinculo = null
+        Herramientas.alModoEstudio = null
+        callar()
+        automatizaciones.detener()
+        main.removeCallbacks(anunciar)
         oido.liberar()
         reco?.destroy(); reco = null
         tts?.shutdown()
@@ -161,8 +201,32 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         notificar(texto)
         Bus.mensaje(deVos = false, texto = texto)
         Bus.estado(Bus.Estado.HABLANDO)
+        hablar(texto)
+    }
+
+    /** Voz natural (Elena, Tomás…) si está elegida y hay internet; si no, la voz del sistema. */
+    private fun hablar(texto: String) {
+        val turno = ++turnoVoz
+        val voz = prefs.voz
+        if (voz == "sistema") { hablarSistema(texto); return }
+        scope.launch {
+            val mp3 = withContext(Dispatchers.IO) { runCatching { vozNatural.sintetizar(texto, voz) }.getOrNull() }
+            if (turno != turnoVoz || estado != Estado.HABLANDO) { mp3?.delete(); return@launch }   // la interrumpiste
+            if (mp3 == null) hablarSistema(texto)
+            else vozNatural.reproducir(mp3) { if (turno == turnoVoz) terminoDeHablar() }
+        }
+    }
+
+    private fun hablarSistema(texto: String) {
         if (!ttsListo) { main.postDelayed({ terminoDeHablar() }, 500); return }
         tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, Bundle(), "r${System.currentTimeMillis()}")
+    }
+
+    /** Corta lo que esté diciendo (cualquiera de las dos voces). */
+    private fun callar() {
+        turnoVoz++
+        tts?.stop()
+        if (::vozNatural.isInitialized) vozNatural.parar()
     }
 
     private fun terminoDeHablar() {
@@ -256,6 +320,89 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         r.startListening(intentReco())
     }
 
+    /** Te lee los mensajes que llegaron (juntando los que llegan seguidos) y te escucha por si querés responder. */
+    private fun anunciarMensajes() {
+        val lote = pendientes.toList(); pendientes.clear()
+        if (lote.isEmpty() || !prefs.leerMensajes) return
+        // No interrumpir: si está ocupada, charlando, en una llamada o en "No molestar", no lee
+        val audio = getSystemService(AUDIO_SERVICE) as android.media.AudioManager
+        val enLlamada = audio.mode == android.media.AudioManager.MODE_IN_CALL ||
+            audio.mode == android.media.AudioManager.MODE_IN_COMMUNICATION
+        val noMolestar = getSystemService(NotificationManager::class.java).currentInterruptionFilter !=
+            NotificationManager.INTERRUPTION_FILTER_ALL
+        if (estado != Estado.ESPERA || modoCharla || enLlamada || noMolestar) return
+
+        val chats = lote.groupBy { "${it.quien}|${it.app}" }
+        val texto = if (chats.size == 1) {
+            val ms = chats.values.first(); val m = ms.last()
+            if (ms.size == 1) "${m.quien} te escribió por ${m.app}: ${m.texto}"
+            else "${m.quien} te mandó ${ms.size} mensajes por ${m.app}. El último dice: ${m.texto}"
+        } else {
+            val nombres = chats.values.map { it.last().quien }.distinct()
+            "Tenés ${lote.size} mensajes nuevos, de " +
+                (if (nombres.size > 1) nombres.dropLast(1).joinToString(", ") + " y " + nombres.last() else nombres.first()) +
+                ". ¿Querés que te los lea?"
+        }
+        anunciado = lote.joinToString(" | ") { "${it.quien} por ${it.app}: ${it.texto}" }.take(1500)
+        anunciadoEn = System.currentTimeMillis()
+        decir(texto, seguir = true)
+    }
+
+    /** Llegó la hora de un aviso programado. Si está ocupada, queda la notificación. */
+    private fun sonoAviso(av: Libreta.Aviso) {
+        if (estado != Estado.ESPERA) { Avisos.mostrarNotificacion(this, av); return }
+        when {
+            av.texto.startsWith("@") -> procesar(RUTINA_BUEN_DIA)
+            av.texto.startsWith("!") -> ejecutarRegla(Libreta.Regla(0, "Aviso programado", "hora", "", av.texto.drop(1)), "", 0)
+            else -> decir("Te aviso: ${av.texto}", seguir = false)
+        }
+    }
+
+    /** Ejecuta una automatización. Si Nova está ocupada, reintenta en unos segundos (hasta 3 veces). */
+    private fun ejecutarRegla(r: Libreta.Regla, contexto: String, intento: Int) {
+        if (estado != Estado.ESPERA) {
+            if (intento < 3) main.postDelayed({ ejecutarRegla(r, contexto, intento + 1) }, 8000)
+            return
+        }
+        frenarReconocimiento()
+        estado = Estado.PENSANDO
+        Bus.mensaje(deVos = false, texto = "Automatización: ${r.nombre}")
+        Bus.estado(Bus.Estado.PENSANDO, "Haciendo «${r.nombre}»…")
+        val orden = "(Automatización que el usuario creó: hacelo directamente, sin preguntar, salvo pagar o borrar. " +
+            "${contexto.trim()}) ${r.hacer}. Al terminar, confirmá en una oración corta qué hiciste."
+        scope.launch {
+            val respuesta = withContext(Dispatchers.IO) {
+                try { cerebro.pensar(orden) } catch (e: Exception) { "No pude hacer «${r.nombre}»: ${e.message?.take(60)}" }
+            }
+            decir(respuesta, seguir = false)
+        }
+    }
+
+    /** Llegó algo desde la PC: hacer sonar el celular, o una orden para ejecutar y responder. */
+    private fun recibirDePC(m: org.json.JSONObject) {
+        val v = vinculo ?: return
+        when (m.optString("tipo")) {
+            "sonar" -> {
+                val r = Sonar.iniciar(this)
+                scope.launch(Dispatchers.IO) { runCatching { v.enviar("respuesta", r, m.optString("id")) } }
+            }
+            "orden" -> {
+                val texto = m.optString("texto")
+                Bus.mensaje(deVos = true, texto = "Desde la PC: $texto")
+                scope.launch {
+                    val respuesta = withContext(Dispatchers.IO) {
+                        try {
+                            cerebro.pensar("(Orden que te mandó ${prefs.usuario} desde su PC; él no está mirando el celular, " +
+                                "así que respondé con el resultado concreto.) $texto")
+                        } catch (e: Exception) { "No pude hacerlo: ${e.message?.take(60)}" }
+                    }
+                    Bus.mensaje(deVos = false, texto = respuesta)
+                    withContext(Dispatchers.IO) { runCatching { v.enviar("respuesta", respuesta, m.optString("id")) } }
+                }
+            }
+        }
+    }
+
     /** No dijiste nada. En modo charla te espera un poco antes de irse. */
     private fun sinRespuesta() {
         if (!modoCharla) { esperarNombre(); return }
@@ -267,6 +414,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun ponerCharla(activa: Boolean) {
+        if (!activa) cerebro.estudio = null
         modoCharla = activa
         silencios = 0
         cerebro.charla = activa
@@ -280,20 +428,23 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         "Acá estoy. ¿Cómo te trató el día?").random()
 
     // ------------------------------------------------------------ PENSAR
-    private fun procesar(pedido: String) {
+    private fun procesar(dicho: String) {
         frenarReconocimiento()
         estado = Estado.PENSANDO
         Bus.parcial("")
-        Bus.mensaje(deVos = true, texto = pedido)
+        Bus.mensaje(deVos = true, texto = if (dicho == RUTINA_BUEN_DIA) "Rutina de buen día" else dicho)
+        // "Buen día" dispara la rutina completa
+        val pedido = if (normalizar(dicho).trim(' ', '.', '!', ',', '¡') in PARA_BUEN_DIA) RUTINA_BUEN_DIA else dicho
         Bus.estado(Bus.Estado.PENSANDO)
         val p = normalizar(pedido).trim(' ', '.', '!', '?', ',', '¿', '¡')
         if ("cuanto uso" in p || "limite de uso" in p) { decir(cerebro.resumenUso(), modoCharla); return }  // gratis
         if (modoCharla && p in PARA_TERMINAR) { ponerCharla(false); decir("¡Qué linda charla! Cuando quieras seguimos.", false); return }
         if (p in PARA_CHARLAR) { ponerCharla(true); decir(apertura(), seguir = true); return }
+        automatizaciones.reglaDeVoz(pedido)?.let { estado = Estado.ESPERA; ejecutarRegla(it, "Lo pidió por voz.", 0); return }
         when (p) {
             "nada", "chau", "gracias", "listo", "cancelar", "eso es todo" -> { decir("Dale, cualquier cosa me llamás.", false); return }
             "olvida todo", "nueva conversacion", "empecemos de nuevo" -> { cerebro.olvidar(); decir("Listo, empezamos de cero.", false); return }
-            "callate", "silencio", "para" -> { ponerCharla(false); tts?.stop(); esperarNombre(); return }
+            "callate", "silencio", "para" -> { ponerCharla(false); callar(); esperarNombre(); return }
             "" -> { esperarNombre(); return }
         }
         scope.launch {
@@ -301,8 +452,12 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             val rapido = withContext(Dispatchers.IO) { runCatching { comandos.intentar(pedido) }.getOrNull() }
             if (rapido != null) { decir(rapido, seguir = modoCharla); return@launch }
             notificar("Pensando…")
+            // Si recién te leyó mensajes, el cerebro sabe a qué te referís con "respondele que sí"
+            val conContexto = if (System.currentTimeMillis() - anunciadoEn < 90_000 && anunciado.isNotEmpty())
+                "(Contexto: recién le leí al usuario estos mensajes nuevos: $anunciado. Si quiere responder, usá responder_mensaje; " +
+                "si quiere escucharlos, usá mensajes_sin_leer.)\n$pedido" else pedido
             val respuesta = withContext(Dispatchers.IO) {
-                try { cerebro.pensar(pedido) }
+                try { cerebro.pensar(conContexto) }
                 catch (e: Exception) { Log.e(TAG, "Error", e); "Uy, tuve un problema: ${e.message?.take(80)}. ¿Probamos de nuevo?" }
             }
             decir(respuesta, seguir = modoCharla || respuesta.trimEnd().endsWith("?"))
@@ -322,6 +477,9 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         "clima" -> "Mirando el clima…"
         "buscar_contacto" -> "Buscando el contacto…"
         "esperar" -> "Esperando que cargue…"
+        "envio_masivo_preparar" -> "Leyendo los números de las capturas…"
+        "envio_masivo_enviar" -> "Arrancando el envío…"
+        "documento_guardar" -> "Abriendo tus archivos…"
         else -> "Trabajando…"
     }
 

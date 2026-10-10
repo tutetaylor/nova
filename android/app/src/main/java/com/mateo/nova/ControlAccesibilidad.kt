@@ -4,13 +4,16 @@ import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.Display
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
@@ -116,6 +119,40 @@ class ControlAccesibilidad : AccessibilityService() {
         return tocar(0).replace("[0]", "\"$texto\"")
     }
 
+    /** Si en pantalla aparece alguno de esos textos (sin importar mayúsculas ni acentos). */
+    fun hayTexto(vararg textos: String): Boolean {
+        val raiz = rootInActiveWindow ?: return false
+        val lista = mutableListOf<AccessibilityNodeInfo>()
+        recorrer(raiz, lista, 0)
+        val todo = normalizar(lista.joinToString(" ") { "${it.text ?: ""} ${it.contentDescription ?: ""}" })
+        return textos.any { todo.contains(normalizar(it)) }
+    }
+
+    /**
+     * Toca el botón Enviar de WhatsApp (chat, vista previa de un archivo o el cartel "¿Enviar a…?").
+     * Busca por id o por etiqueta exacta, para no confundirlo con un mensaje que diga "enviar".
+     */
+    fun tocarEnviar(): Boolean {
+        val raiz = rootInActiveWindow ?: return false
+        val lista = mutableListOf<AccessibilityNodeInfo>()
+        recorrer(raiz, lista, 0)
+        val etiquetas = setOf("enviar", "send")
+        val boton = lista.firstOrNull { n ->
+            val id = n.viewIdResourceName ?: ""
+            id.endsWith(":id/send") || id.endsWith(":id/send_btn") || id.endsWith(":id/send_button")
+        } ?: lista.firstOrNull { n ->
+            !n.isEditable && (normalizar(n.contentDescription?.toString() ?: "") in etiquetas ||
+                normalizar(n.text?.toString() ?: "") in etiquetas)
+        } ?: return false
+        var actual: AccessibilityNodeInfo? = boton
+        while (actual != null) {
+            if (actual.isClickable && actual.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            actual = actual.parent
+        }
+        val r = Rect().also { boton.getBoundsInScreen(it) }
+        return tocarEn(r.exactCenterX(), r.exactCenterY())
+    }
+
     fun escribir(texto: String, indice: Int? = null): String {
         val destino = indice?.let { elementos.getOrNull(it) }
             ?: rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
@@ -156,6 +193,34 @@ class ControlAccesibilidad : AccessibilityService() {
         }, null)
         latch.await(3, TimeUnit.SECONDS)
         return ok
+    }
+
+    // ------------------------------------------------------------ OJOS
+    /** Saca una captura de la pantalla (Android 11 o más). Bloqueante: no llamar en el hilo principal. */
+    fun capturar(): Bitmap? {
+        if (Build.VERSION.SDK_INT < 30) return null
+        val latch = CountDownLatch(1)
+        var resultado: Bitmap? = null
+        takeScreenshot(Display.DEFAULT_DISPLAY, Executors.newSingleThreadExecutor(),
+            object : TakeScreenshotCallback {
+                override fun onSuccess(r: ScreenshotResult) {
+                    val buffer = r.hardwareBuffer
+                    resultado = Bitmap.wrapHardwareBuffer(buffer, r.colorSpace)?.copy(Bitmap.Config.ARGB_8888, false)
+                    buffer.close()
+                    latch.countDown()
+                }
+                override fun onFailure(codigo: Int) { latch.countDown() }
+            })
+        latch.await(5, TimeUnit.SECONDS)
+        return resultado
+    }
+
+    /** Toca un punto dado en coordenadas 0..1000 (como las devuelve la visión). */
+    fun tocarPunto(y: Int, x: Int, largo: Boolean = false): String {
+        val m = resources.displayMetrics
+        val px = x.coerceIn(0, 1000) / 1000f * m.widthPixels
+        val py = y.coerceIn(0, 1000) / 1000f * m.heightPixels
+        return if (tocarEn(px, py, if (largo) 700 else 60)) "Tocado en [$y, $x]" else "No pude tocar ahí"
     }
 
     fun botonSistema(accion: String): String {

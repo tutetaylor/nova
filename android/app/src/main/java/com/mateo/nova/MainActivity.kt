@@ -80,6 +80,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        Sonar.parar(this)     // si estaba sonando para que lo encuentres, abrir la app lo calla
+        revisarActualizacion()
         refrescar()
         Bus.alCambiarEstado = { e, d -> mostrarEstado(e, d) }
         Bus.alMensaje = { m -> agregarBurbuja(m, animar = true) }
@@ -212,6 +214,25 @@ class MainActivity : AppCompatActivity() {
         ContextCompat.startForegroundService(this, Intent(this, AsistenteService::class.java)
             .setAction(AsistenteService.ACCION_TEXTO).putExtra(AsistenteService.EXTRA_TEXTO, texto))
         return true
+    }
+
+    /** Cada 6 horas, al abrir la app, se fija si hay versión nueva (solo si cargaste repo y token). */
+    private fun revisarActualizacion() {
+        val p = Prefs(this)
+        if (p.repo.isBlank() || p.tokenGithub.isBlank()) return
+        if (System.currentTimeMillis() - p.ultimaRevision < 6 * 3_600_000L) return
+        Thread {
+            val (novedad, texto) = Actualizador.revisar(this)
+            if (novedad != null) runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Versión nueva de ${p.nombre}")
+                    .setMessage("$texto ¿La instalo?")
+                    .setPositiveButton("Actualizar") { _, _ ->
+                        Thread { val r = Actualizador.descargarEInstalar(this, novedad)
+                            runOnUiThread { Toast.makeText(this, r, Toast.LENGTH_LONG).show() } }.start()
+                    }.setNegativeButton("Después", null).show()
+            }
+        }.start()
     }
 
     private fun abrirAjustes() = startActivity(Intent(this, AjustesActivity::class.java))
