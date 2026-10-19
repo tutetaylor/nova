@@ -36,6 +36,8 @@ class Puente:
             "personalidad": config.PERSONALIDAD, "personalidadPropia": config.PERSONALIDAD_PROPIA,
             "vinculo": config.VINCULO, "repo": config.REPO, "token": config.TOKEN_GITHUB,
             "pollinations": config.POLLINATIONS_KEY,
+            "libreProveedor": config.LIBRE_PROVEEDOR, "libreClave": config.LIBRE_CLAVE,
+            "libreModelo": config.LIBRE_MODELO, "libreCharla": config.LIBRE_EN_CHARLA,
             "version": __import__("actualizar").version_actual(),
         }
 

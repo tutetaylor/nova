@@ -458,6 +458,39 @@
         <p class="ayuda">Opcional. Conseguila en <a href="#" id="linkPollinations">enter.pollinations.ai</a> (entrás con GitHub; trae crédito de regalo). Sin clave, las imágenes se intentan igual y los videos no.</p>
       </div>
     </div>
+
+    <div class="seccion">Cerebro libre</div>
+    <div class="grupo">
+      <p class="ayuda" style="margin:0 0 16px">Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política) que ningún ajuste saca. Cuando se niega, responde este otro modelo, más abierto.</p>
+      <div class="campo">
+        <label for="fLibreProveedor">Proveedor</label>
+        <select id="fLibreProveedor">
+          <option value="">Apagado</option>
+          <option value="pollinations">Pollinations (usa tu clave de imágenes)</option>
+          <option value="openrouter">OpenRouter (gratis, unos 200 mensajes por día)</option>
+        </select>
+      </div>
+      <div class="campo" id="campoLibreClave">
+        <label for="fLibreClave">Clave de OpenRouter</label>
+        <input id="fLibreClave" type="password" placeholder="sk-or-…" autocomplete="off">
+        <p class="ayuda">Gratis y sin tarjeta en <a href="#" id="linkOpenRouter">openrouter.ai/keys</a>.</p>
+      </div>
+      <div class="campo">
+        <label for="fLibreModelo">Modelo</label>
+        <input id="fLibreModelo" placeholder="Vacío = el recomendado">
+        <p class="ayuda" id="ayudaLibreModelo"></p>
+      </div>
+      <div class="campo">
+        <label class="interruptor" for="fLibreCharla">
+          <input type="checkbox" id="fLibreCharla">
+          <span class="riel"></span>
+          <span>
+            <b>Usarlo siempre en modo charla</b>
+            <span class="ayuda">La charla va directo a este modelo (sin negativas). Para órdenes sigue Gemini.</span>
+          </span>
+        </label>
+      </div>
+    </div>
   </div>
   <div class="panel-pie">
     <button class="boton" id="guardar">Guardar cambios</button>
@@ -670,6 +703,16 @@ function textoConfirmar() {
     : "Modo libre: hace todo directo. Igual pregunta antes de pagar o borrar archivos.";
 }
 $("fConfirmar").onchange = textoConfirmar;
+function textoLibre() {
+  const p = $("fLibreProveedor").value;
+  $("campoLibreClave").style.display = p === "openrouter" ? "" : "none";
+  $("ayudaLibreModelo").textContent = p === "pollinations"
+    ? "Recomendado: deepseek/deepseek-v4-flash. Otros abiertos: moonshotai/kimi-k3, z-ai/glm-5.3, x-ai/grok-4.3."
+    : p === "openrouter" ? "Recomendado: openrouter/free (elige solo un modelo gratis). Podés poner cualquiera que termine en :free."
+    : "Elegí un proveedor para activarlo.";
+}
+$("fLibreProveedor").onchange = textoLibre;
+$("linkOpenRouter").onclick = e => { e.preventDefault(); api()?.abrir_link("https://openrouter.ai/keys"); };
 $("fPersonalidad").onchange = () => {
   $("fPersonalidadPropia").style.display = $("fPersonalidad").value === "propia" ? "" : "none";
   if ($("fPersonalidad").value === "propia") $("fPersonalidadPropia").focus();
@@ -773,6 +816,8 @@ function abrirAjustes() {
   $("fPersonalidadPropia").style.display = $("fPersonalidad").value === "propia" ? "" : "none";
   $("fVoz").value = datos.voz; $("fClave").value = datos.clave; $("fLimite").value = datos.limite; $("fModelo").value = datos.modelo;
   $("fPollinations").value = datos.pollinations || "";
+  $("fLibreProveedor").value = datos.libreProveedor || ""; $("fLibreClave").value = datos.libreClave || "";
+  $("fLibreModelo").value = datos.libreModelo || ""; $("fLibreCharla").checked = !!datos.libreCharla; textoLibre();
   $("uso").textContent = datos.limite > 0
     ? `Usaste ${datos.usadas} de ${datos.limite} en la última hora. 0 = sin límite.`
     : `Sin límite propio. Usaste ${datos.usadas} en la última hora.`;
@@ -883,6 +928,8 @@ $("guardar").onclick = async () => {
   const cambios = {
     NOMBRE: $("fNombre").value, USUARIO: $("fUsuario").value, CIUDAD: $("fCiudad").value, VOZ: $("fVoz").value,
     CONFIRMAR: $("fConfirmar").checked ? "1" : "0",
+    LIBRE_PROVEEDOR: $("fLibreProveedor").value, LIBRE_CLAVE: $("fLibreClave").value,
+    LIBRE_MODELO: $("fLibreModelo").value, LIBRE_EN_CHARLA: $("fLibreCharla").checked ? "1" : "0",
     REPO: $("fRepo").value, TOKEN_GITHUB: $("fToken").value,
     PERSONALIDAD: $("fPersonalidad").value, PERSONALIDAD_PROPIA: $("fPersonalidadPropia").value,
     GEMINI_API_KEY: $("fClave").value, LIMITE_POR_HORA: $("fLimite").value || "0", MODELO: $("fModelo").value, POLLINATIONS_KEY: $("fPollinations").value,

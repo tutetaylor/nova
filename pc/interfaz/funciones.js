@@ -513,6 +513,12 @@ window.FUNCIONES = [
     ]
    },
    {
+    "nombre": "Cerebro libre",
+    "donde": "Celular y PC",
+    "detalle": "Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política). Cuando se niega, Nova le pasa la posta a otro modelo más abierto (DeepSeek, Kimi, GLM, Grok… por Pollinations, o modelos gratis de OpenRouter) y no llegás a escuchar el «no puedo». También podés usarlo siempre en modo charla. Se activa en Ajustes › Cerebro libre.",
+    "ejemplos": []
+   },
+   {
     "nombre": "Personalidad",
     "donde": "Celular y PC",
     "detalle": "Cálida, graciosa, seria, motivadora, sarcástica o una propia descrita por vos.",

@@ -38,6 +38,10 @@ class AjustesActivity : AppCompatActivity() {
     private lateinit var tokenGithub: EditText
     private lateinit var confirmar: com.google.android.material.materialswitch.MaterialSwitch
     private lateinit var leerMensajes: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var libreEnCharla: com.google.android.material.materialswitch.MaterialSwitch
+    private lateinit var libreClave: EditText
+    private lateinit var libreModelo: EditText
+    private var libreProveedor = ""
 
     private val pedirPermisos = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         dibujarPasos()
@@ -118,6 +122,25 @@ class AjustesActivity : AppCompatActivity() {
         }
         colorLeer(leerMensajes.isChecked)
         leerMensajes.setOnCheckedChangeListener { _, on -> colorLeer(on) }
+
+        // Cerebro libre
+        libreProveedor = prefs.libreProveedor
+        libreClave = findViewById(R.id.libreClave); libreClave.setText(prefs.libreClave)
+        libreModelo = findViewById(R.id.libreModelo); libreModelo.setText(prefs.libreModelo)
+        libreEnCharla = findViewById(R.id.libreEnCharla); libreEnCharla.isChecked = prefs.libreEnCharla
+        fun colorLibre(on: Boolean) {
+            libreEnCharla.trackTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (on) R.color.estrella else R.color.linea))
+            libreEnCharla.thumbTintList = android.content.res.ColorStateList.valueOf(
+                ContextCompat.getColor(this, if (on) R.color.sobre_estrella else R.color.bruma))
+        }
+        colorLibre(libreEnCharla.isChecked)
+        libreEnCharla.setOnCheckedChangeListener { _, on -> colorLibre(on) }
+        mostrarLibre()
+        findViewById<View>(R.id.filaLibre).setOnClickListener { elegirLibre() }
+        findViewById<View>(R.id.linkOpenRouter).setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://openrouter.ai/keys")))
+        }
 
         findViewById<View>(R.id.atras).setOnClickListener { finish() }
         mostrarVozYPersonalidad()
@@ -232,6 +255,29 @@ class AjustesActivity : AppCompatActivity() {
             else Personalidad.ESTILOS[prefs.personalidad]?.first ?: "Cálida"
     }
 
+    private val nombresLibre = linkedMapOf("" to "Apagado", "pollinations" to "Pollinations (usa tu clave de imágenes)",
+        "openrouter" to "OpenRouter (gratis, unos 200 mensajes por día)")
+
+    private fun mostrarLibre() {
+        findViewById<TextView>(R.id.filaLibreValor).text = nombresLibre[libreProveedor] ?: "Apagado"
+        findViewById<View>(R.id.grupoLibreClave).visibility = if (libreProveedor == "openrouter") View.VISIBLE else View.GONE
+        findViewById<TextView>(R.id.ayudaLibreModelo).text = when (libreProveedor) {
+            "pollinations" -> "Recomendado: deepseek/deepseek-v4-flash. Otros abiertos: moonshotai/kimi-k3, z-ai/glm-5.3, x-ai/grok-4.3."
+            "openrouter" -> "Recomendado: openrouter/free (elige solo un modelo gratis). Podés poner cualquiera que termine en :free."
+            else -> "Elegí un proveedor para activarlo."
+        }
+    }
+
+    private fun elegirLibre() {
+        val claves = nombresLibre.keys.toList()
+        AlertDialog.Builder(this).setTitle("Cerebro libre")
+            .setSingleChoiceItems(nombresLibre.values.toTypedArray(), claves.indexOf(libreProveedor)) { d, i ->
+                libreProveedor = claves[i]; mostrarLibre(); d.dismiss()
+                if (libreProveedor == "pollinations" && clavePollinations.text.isBlank())
+                    Toast.makeText(this, "Cargá también la clave de Pollinations, más arriba.", Toast.LENGTH_LONG).show()
+            }.show()
+    }
+
     private fun elegirVoz() {
         val claves = VozNatural.VOCES.keys.toList()
         AlertDialog.Builder(this).setTitle("Voz")
@@ -267,6 +313,10 @@ class AjustesActivity : AppCompatActivity() {
         prefs.apiKey = clave.text.toString()
         prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 0
         prefs.clavePollinations = clavePollinations.text.toString()
+        prefs.libreProveedor = libreProveedor
+        prefs.libreClave = libreClave.text.toString()
+        prefs.libreModelo = libreModelo.text.toString()
+        prefs.libreEnCharla = libreEnCharla.isChecked
         prefs.modelo = modelo.text.toString()
         prefs.confirmar = confirmar.isChecked
         val vinculoCambio = codigoVinculo.text.toString().trim() != prefs.codigoVinculo

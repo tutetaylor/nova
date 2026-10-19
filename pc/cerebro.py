@@ -176,6 +176,86 @@ class Frases:
         self._sacar(len(self.buf))
 
 
+# Cerebro libre: cuando Gemini se niega a un tema, responde otro modelo (más abierto) por una API compatible con OpenAI.
+PROVEEDORES_LIBRES = {
+    "pollinations": ("https://gen.pollinations.ai/v1", "deepseek/deepseek-v4-flash"),   # usa la clave de imágenes
+    "openrouter": ("https://openrouter.ai/api/v1", "openrouter/free"),                 # gratis, ~200 por día
+}
+RECHAZO = re.compile(
+    r"\bno (te |le |lo )?(puedo|podr[ée]|voy a( poder)?)( \w+){0,3} (ayudar|ayudarte|hablar|responder|describir|escribir|generar|crear|"
+    r"continuar|seguir|participar|dar|darte|proporcionar|brindar|cumplir|entrar|discutir|opinar|contar|contarte|abordar)|"
+    r"\b(no me (siento c[oó]mod|es posible|corresponde)|prefiero no|lo siento,? pero|no es apropiad|"
+    r"no estoy (programad|autorizad|en condiciones)|va en contra de|mis (pol[ií]ticas|directrices|pautas|normas)|"
+    r"i can'?t|i cannot|i'?m not able|i won'?t)", re.I)
+
+
+def parece_rechazo(texto):
+    """¿La respuesta es un "no puedo hablar de eso"? Mira solo el principio y respuestas cortas."""
+    t = (texto or "").strip()
+    return bool(t) and len(t) < 700 and bool(RECHAZO.search(t[:220]))
+
+
+def config_libre():
+    """(url, clave, modelo) del cerebro libre, o None si no está configurado."""
+    prov = (config.LIBRE_PROVEEDOR or "").strip().lower()
+    if prov not in PROVEEDORES_LIBRES:
+        return None
+    url, modelo = PROVEEDORES_LIBRES[prov]
+    clave = config.POLLINATIONS_KEY if prov == "pollinations" else config.LIBRE_CLAVE
+    if not clave:
+        return None
+    return url, clave, (config.LIBRE_MODELO or "").strip() or modelo
+
+
+def prompt_libre(charla=False, estudio=None):
+    """La misma personalidad, sin las reglas de herramientas (el cerebro libre solo conversa)."""
+    p = personalidad(charla, estudio)
+    a, b = p.find("Reglas de acción:"), p.find("Contexto de ahora")
+    if a != -1 and b != -1:
+        p = p[:a] + "En esta respuesta no manejás la PC: solo conversás.\n\n" + p[b:]
+    return p
+
+
+def responder_libre(http, mensajes, al_texto=None):
+    """Pregunta al cerebro libre (formato OpenAI). Con `al_texto`, entrega frases apenas llegan."""
+    cfg = config_libre()
+    if not cfg:
+        raise RuntimeError("el cerebro libre no está configurado")
+    url, clave, modelo = cfg
+    r = http.post(f"{url}/chat/completions", timeout=120, stream=bool(al_texto),
+                  json={"model": modelo, "messages": mensajes, "stream": bool(al_texto), "max_tokens": 4096},
+                  headers={"Authorization": f"Bearer {clave}", "HTTP-Referer": "https://github.com/tutetaylor/nova",
+                           "X-Title": "Nova"})
+    if not r.ok:
+        raise RuntimeError({401: "la clave no es válida", 402: "se quedó sin saldo",
+                            429: "llegó al límite por ahora"}.get(r.status_code, f"error {r.status_code}"))
+    if not al_texto:
+        texto = ((r.json().get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        return re.sub(r"<think>.*?</think>", "", texto, flags=re.S).strip()
+    r.encoding = "utf-8"
+    frases, partes, visto = Frases(al_texto), [], 0
+    for linea in r.iter_lines(decode_unicode=True):
+        if not linea or not linea.startswith("data:"):
+            continue
+        dato = linea[5:].strip()
+        if dato == "[DONE]":
+            break
+        try:
+            delta = (json.loads(dato).get("choices") or [{}])[0].get("delta") or {}
+        except ValueError:
+            continue
+        if not delta.get("content"):
+            continue
+        partes.append(delta["content"])
+        # Algunos modelos piensan en voz alta entre <think>…</think>: eso no se dice
+        visible = re.sub(r"<think>.*?</think>", "", "".join(partes), flags=re.S).split("<think>")[0]
+        if len(visible) > visto:
+            frases.agregar(visible[visto:])
+            visto = len(visible)
+    frases.cerrar()
+    return re.sub(r"<think>.*?</think>", "", "".join(partes), flags=re.S).strip()
+
+
 class Cerebro:
     def __init__(self):
         if not config.GEMINI_API_KEY:
@@ -273,14 +353,49 @@ class Cerebro:
             cand["finishReason"] = fin
         return {"candidates": [cand], "promptFeedback": feedback}
 
+    def _con_libre(self, pedido, al_texto):
+        """Responde con el cerebro libre y deja la charla anotada para que Gemini siga el hilo."""
+        mensajes = [{"role": "system", "content": prompt_libre(self.charla, self.estudio)}]
+        for m in self.historial[-16:]:
+            texto = " ".join(p["text"] for p in m.get("parts", []) if "text" in p and not p.get("thought")).strip()
+            if texto:
+                mensajes.append({"role": "user" if m["role"] == "user" else "assistant", "content": texto})
+        mensajes.append({"role": "user", "content": pedido})
+        try:
+            texto = responder_libre(self.http, mensajes, al_texto) or "No se me ocurre qué decir."
+        except Exception as e:
+            return f"Gemini no quiso responder eso y el cerebro libre falló: {str(e)[:80]}."
+        self.historial += [{"role": "user", "parts": [{"text": pedido}]}, {"role": "model", "parts": [{"text": texto}]}]
+        self._recortar()
+        return texto
+
     def pensar(self, pedido: str, al_texto=None) -> str:
-        """Responde el pedido. Con `al_texto`, entrega cada frase apenas está lista (para empezar a hablar ya)."""
+        """Responde el pedido. Con `al_texto`, entrega cada frase apenas está lista (para empezar a hablar ya).
+        Si Gemini se niega y hay cerebro libre configurado, responde ese otro modelo."""
+        hay_libre = config_libre() is not None
+        if hay_libre and self.charla and config.LIBRE_EN_CHARLA and not self.estudio:
+            return self._con_libre(pedido, al_texto)
+        hablar = al_texto
+        if al_texto and hay_libre:
+            # Si la primera frase de Gemini es un "no puedo", no la dice: espera a ver si hay que pasarle la posta
+            control = {"primera": True, "callado": False}
+
+            def hablar(frase):
+                if control["callado"]:
+                    return
+                if control["primera"]:
+                    control["primera"] = False
+                    if parece_rechazo(frase):
+                        control["callado"] = True
+                        return
+                al_texto(frase)
         if self.limite.disponibles() <= 0:
             return (f"Llegué al límite de uso de esta hora. "
                     f"Vuelvo a estar disponible en {self.limite.minutos_para_liberar()} minutos.")
         inicio = len(self.historial)
         self.historial.append({"role": "user", "parts": [{"text": pedido}]})
         texto = ""
+        uso_herramientas = False
         try:
             for _ in range(10):  # hasta 10 rondas de herramientas por pedido
                 if self.limite.disponibles() <= 0:
@@ -288,12 +403,15 @@ class Cerebro:
                     return ("Llegué al límite de uso de esta hora a mitad de la tarea, así que la dejé ahí. "
                             f"En {self.limite.minutos_para_liberar()} minutos la retomamos.")
                 self.limite.registrar()
-                resp = self._llamar(al_texto)
+                resp = self._llamar(hablar)
                 candidato = (resp.get("candidates") or [{}])[0]
                 if ((resp.get("promptFeedback") or {}).get("blockReason")
                         or candidato.get("finishReason") in BLOQUEOS):
                     del self.historial[inicio:]
-                    return "Eso Google no me deja responderlo, ni con los filtros al mínimo. Probá preguntármelo de otra forma."
+                    if hay_libre:
+                        return self._con_libre(pedido, al_texto)
+                    return ("Eso Google no me deja responderlo, ni con los filtros al mínimo. Si configurás el cerebro libre "
+                            "en Ajustes, esos temas los responde otro modelo.")
                 contenido = candidato.get("content") or {"role": "model", "parts": []}
                 contenido["role"] = "model"
                 partes = contenido.setdefault("parts", [])
@@ -302,6 +420,7 @@ class Cerebro:
                 llamadas = [p["functionCall"] for p in partes if "functionCall" in p]
                 if not llamadas:
                     break
+                uso_herramientas = True
                 respuestas = []
                 for ll in llamadas:
                     print(f"   ⚙️  {ll['name']}({ll.get('args', {})})")
@@ -314,6 +433,9 @@ class Cerebro:
         except Exception:
             del self.historial[inicio:]
             raise
+        if hay_libre and not uso_herramientas and parece_rechazo(texto):
+            del self.historial[inicio:]             # Gemini se negó: le pasa la posta al cerebro libre
+            return self._con_libre(pedido, al_texto)
         self._recortar()
         return texto or "Listo."
 
