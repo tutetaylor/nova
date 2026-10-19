@@ -548,6 +548,115 @@ def noticias(tema=""):
     return "\n".join("- " + t for t in titulos) or "No pude traer noticias ahora."
 
 
+# ------------------------------------------------------------------ IMÁGENES Y VIDEOS
+mostrar_imagen = None        # el núcleo lo conecta para mostrar la imagen en el chat de la ventana
+anunciar = None              # el núcleo lo conecta para avisar en voz alta cuando termina un video
+_haciendo_video = threading.Event()
+
+_TAMANOS = {"vertical": ((768, 1344), (720, 1280)), "horizontal": ((1344, 768), (1280, 720)),
+            "cuadrado": ((1024, 1024), (1280, 720))}
+
+
+class _FalloMedio(Exception):
+    pass
+
+
+def _descargar_medio(url, clave, timeout):
+    r = requests.get(url, timeout=timeout, headers={"Authorization": f"Bearer {clave}"} if clave else {})
+    if not r.ok:
+        raise _FalloMedio({401: "La clave de Pollinations no es válida. Revisala en Ajustes.",
+                           403: "La clave de Pollinations no es válida. Revisala en Ajustes.",
+                           402: "Tu cuenta de Pollinations se quedó sin saldo. Podés cargar más en enter.pollinations.ai.",
+                           429: "Pollinations me está frenando por pedir mucho seguido. Probá en un minuto."}
+                          .get(r.status_code, f"No pude generarlo (Pollinations respondió {r.status_code})."))
+    tipo = r.headers.get("Content-Type", "").split(";")[0].strip()
+    if not tipo.startswith(("image/", "video/")):
+        raise _FalloMedio("Pollinations no devolvió una imagen ni un video. Probá describirlo de otra forma.")
+    return r.content, tipo
+
+
+def _guardar_medio(datos, tipo):
+    ext = {"image/png": "png", "image/webp": "webp", "video/mp4": "mp4"}.get(tipo, "mp4" if tipo.startswith("video/") else "jpg")
+    config.CARPETA_CAPTURAS.mkdir(parents=True, exist_ok=True)
+    ruta = config.CARPETA_CAPTURAS / f"nova_{dt.datetime.now():%Y%m%d_%H%M%S_%f}.{ext}"
+    ruta.write_bytes(datos)
+    return ruta
+
+
+def _abrir_archivo(ruta):
+    try:
+        if SISTEMA == "Windows":
+            os.startfile(str(ruta))  # type: ignore[attr-defined]
+        else:
+            subprocess.Popen(["open" if SISTEMA == "Darwin" else "xdg-open", str(ruta)])
+    except Exception:
+        pass
+
+
+@herramienta("Genera una imagen con IA a partir de una descripción, la guarda en Imágenes/Nova, la abre y la muestra en el chat. "
+             "Para 'haceme una imagen de…', 'dibujame…', 'un logo…', 'un fondo de pantalla…'. Tarda unos segundos.",
+             prompt=("string", "Descripción para el generador, EN INGLÉS y detallada: sujeto, estilo, luz, encuadre, colores"),
+             formato=("string", "?cuadrado | vertical | horizontal (fondo de pantalla de la PC). Por defecto cuadrado"))
+def generar_imagen(prompt, formato="cuadrado"):
+    (w, h), _ = _TAMANOS.get(formato, _TAMANOS["cuadrado"])
+    clave = config.POLLINATIONS_KEY
+    p = urllib.parse.quote(prompt.strip()[:1500], safe="")
+    semilla = int(dt.datetime.now().timestamp() * 1000) % 999_999
+    base = "https://gen.pollinations.ai/image/" if clave else "https://image.pollinations.ai/prompt/"
+    try:
+        datos, tipo = _descargar_medio(f"{base}{p}?width={w}&height={h}&seed={semilla}&nologo=true", clave, 120)
+    except _FalloMedio as e:
+        return str(e)
+    except Exception as e:
+        if not clave:
+            return ("No pude generar la imagen sin clave (el acceso sin clave anda a veces). Con una clave gratis de "
+                    "Pollinations en Ajustes anda siempre.")
+        return f"No pude generar la imagen: {str(e)[:80]}"
+    ruta = _guardar_medio(datos, tipo)
+    if mostrar_imagen:
+        try:
+            mostrar_imagen(datos, tipo)
+        except Exception:
+            pass
+    _abrir_archivo(ruta)
+    return f"Listo: la generé, la abrí y quedó guardada en {ruta}."
+
+
+@herramienta("Genera un video corto con IA (4 a 8 segundos). Se hace en segundo plano (1 o 2 minutos) y Nova avisa cuando está. "
+             "Necesita la clave de Pollinations.",
+             prompt=("string", "Descripción EN INGLÉS y detallada: qué pasa, movimiento de cámara, estilo, luz"),
+             segundos=("integer", "?4, 6 u 8. Por defecto 4"),
+             formato=("string", "?horizontal | vertical. Por defecto horizontal"))
+def generar_video(prompt, segundos=4, formato="horizontal"):
+    clave = config.POLLINATIONS_KEY
+    if not clave:
+        return ("Para hacer videos necesito una clave gratis de Pollinations: se saca en enter.pollinations.ai entrando con "
+                "GitHub, y se pega en Ajustes › Cerebro gratis.")
+    if _haciendo_video.is_set():
+        return "Ya estoy haciendo un video; cuando termine hago el otro."
+    _, (w, h) = _TAMANOS.get(formato, _TAMANOS["horizontal"])
+    dur = min((4, 6, 8), key=lambda d: abs(d - int(segundos or 4)))
+    url = (f"https://gen.pollinations.ai/video/{urllib.parse.quote(prompt.strip()[:1500], safe='')}"
+           f"?duration={dur}&width={w}&height={h}&nologo=true")
+    _haciendo_video.set()
+
+    def hacer():
+        try:
+            datos, tipo = _descargar_medio(url, clave, 360)
+            ruta = _guardar_medio(datos, tipo)
+            _abrir_archivo(ruta)
+            aviso = f"Listo tu video. Lo abrí y quedó guardado en {ruta.parent}."
+        except _FalloMedio as e:
+            aviso = str(e)
+        except Exception as e:
+            aviso = f"No pude hacer el video: {str(e)[:80]}"
+        finally:
+            _haciendo_video.clear()
+        (anunciar or avisar)(aviso)
+    threading.Thread(target=hacer, daemon=True).start()
+    return f"Arranqué a hacer el video de {dur} segundos. Tarda uno o dos minutos; te aviso cuando esté."
+
+
 # ------------------------------------------------------------------ CONEXIONES
 vinculo = None          # el núcleo lo conecta si hay código de vinculación
 

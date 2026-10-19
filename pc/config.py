@@ -25,7 +25,7 @@ def _primer_inicio():
     ARCHIVO_ENV.write_text(
         f"GEMINI_API_KEY={clave}\nNOMBRE={nombre}\nUSUARIO={usuario}\nCIUDAD={ciudad}\n"
         "VOZ=es-AR-ElenaNeural\nVELOCIDAD_VOZ=+8%\nMODELO=gemini-3.8-flash\nSEGUIR_CHARLANDO=1\n"
-        "LIMITE_POR_HORA=60\n",
+        "LIMITE_POR_HORA=0\n",
         encoding="utf-8")
     print(f"\nListo. Podés cambiar todo después en {ARCHIVO_ENV}\n")
 
@@ -48,7 +48,7 @@ MODELO = os.getenv("MODELO", "gemini-3.8-flash")
 # Si el modelo principal se queda sin cuota gratis, prueba estos en orden
 MODELOS_RESPALDO = [m.strip() for m in os.getenv(
     "MODELOS_RESPALDO", "gemini-3.5-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite").split(",") if m.strip()]
-LIMITE_POR_HORA = int(os.getenv("LIMITE_POR_HORA", "60"))  # consultas por hora; 0 = sin límite propio
+LIMITE_POR_HORA = int(os.getenv("LIMITE_POR_HORA", "0"))  # consultas por hora; 0 = sin límite propio
 MAX_HISTORIAL = int(os.getenv("MAX_HISTORIAL", "20"))  # mensajes que recuerda dentro de la charla
 
 # --- Voz ---
@@ -63,6 +63,7 @@ SEGUNDOS_ESCUCHA = float(os.getenv("SEGUNDOS_ESCUCHA", "8"))     # máximo para 
 VINCULO = os.getenv("VINCULO", "")                 # código para vincular con el celular (se crea solo)
 REPO = os.getenv("REPO", "")                       # usuario/repo de GitHub, para actualizarse sola
 TOKEN_GITHUB = os.getenv("TOKEN_GITHUB", "")       # token de solo lectura del repo
+POLLINATIONS_KEY = os.getenv("POLLINATIONS_KEY", "")  # opcional: imágenes y videos (enter.pollinations.ai)
 
 PERSONALIDAD = os.getenv("PERSONALIDAD", "calida")          # calida | graciosa | seria | motivadora | sarcastica | propia
 PERSONALIDAD_PROPIA = os.getenv("PERSONALIDAD_PROPIA", "")
@@ -82,7 +83,8 @@ CARPETA_CAPTURAS = Path(os.getenv("CARPETA_CAPTURAS", Path.home() / "Pictures" /
 CAMPOS_EDITABLES = {"NOMBRE": str, "USUARIO": str, "CIUDAD": str, "GEMINI_API_KEY": str,
                     "MODELO": str, "VOZ": str, "LIMITE_POR_HORA": int, "CONFIRMAR": str,
                     "PERSONALIDAD": str, "PERSONALIDAD_PROPIA": str,
-                    "VINCULO": str, "REPO": str, "TOKEN_GITHUB": str}
+                    "VINCULO": str, "REPO": str, "TOKEN_GITHUB": str,
+                    "POLLINATIONS_KEY": str, "SIN_LIMITE_V2": str}
 
 
 def guardar(cambios: dict):
@@ -117,3 +119,8 @@ def guardar(cambios: dict):
             nuevas.append(linea)
     nuevas += [f"{k}={v}" for k, v in pendientes.items()]
     ARCHIVO_ENV.write_text("\n".join(nuevas) + "\n", encoding="utf-8")
+
+
+# Desde la versión "sin límites": el viejo límite de 60 por hora pasa a 0 (sin límite propio) una sola vez.
+if ARCHIVO_ENV.exists() and os.getenv("LIMITE_POR_HORA") == "60" and not os.getenv("SIN_LIMITE_V2"):
+    guardar({"LIMITE_POR_HORA": 0, "SIN_LIMITE_V2": "1"})

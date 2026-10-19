@@ -12,6 +12,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
@@ -35,6 +36,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scroll: ScrollView
     private lateinit var entrada: EditText
 
+    /** «Qué puedo hacer»: el ejemplo que tocaste queda escrito para que lo revises y lo mandes. */
+    private val verFunciones = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        r.data?.getStringExtra(FuncionesActivity.FRASE)?.let { f ->
+            entrada.setText(f); entrada.setSelection(f.length); entrada.requestFocus()
+        }
+    }
+
     private val ideas = listOf(
         "¿Qué hora es?", "Poné una alarma a las 7", "¿Cómo está el clima mañana?",
         "Prendé la linterna", "Abrí WhatsApp", "Contame un dato curioso")
@@ -56,6 +64,9 @@ class MainActivity : AppCompatActivity() {
 
         estrella.setOnClickListener { tocarEstrella() }
         findViewById<View>(R.id.botonAjustes).setOnClickListener { abrirAjustes() }
+        findViewById<View>(R.id.botonFunciones).setOnClickListener {
+            verFunciones.launch(Intent(this, FuncionesActivity::class.java))
+        }
         findViewById<View>(R.id.avisoBoton).setOnClickListener { abrirAjustes() }
         findViewById<View>(R.id.encendido).setOnClickListener { alternarEncendido() }
         findViewById<View>(R.id.enviar).setOnClickListener { enviarTexto() }

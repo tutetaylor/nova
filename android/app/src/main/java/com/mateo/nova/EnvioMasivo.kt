@@ -274,6 +274,21 @@ object EnvioMasivo {
             "mientras tanto no uses el celular. Te aviso cuando termine. Si querés cortarlo, decime «pará el envío»."
     }
 
+    /** Manda un archivo (por ejemplo la imagen que generó) a un número por WhatsApp. Bloqueante. */
+    fun mandarArchivo(ctx: Context, numero: String, uri: Uri, tipo: String, texto: String): String {
+        val m = ControlAccesibilidad.instancia
+            ?: return "Para mandarlo solo necesito el control de pantalla (Ajustes › Accesibilidad › Nova)."
+        val pkg = paqueteWhatsApp(ctx) ?: return "No encontré WhatsApp instalado."
+        if (enviando) return "Hay un envío masivo en curso; cuando termine lo mando."
+        if (!desbloqueado(ctx)) return "Desbloqueá el celular y pedímelo de nuevo."
+        cortar = false
+        return when (runCatching { mandarUno(ctx, m, pkg, numero, texto, uri to tipo) }.getOrDefault(Resultado.FALLO)) {
+            Resultado.OK -> "Enviado por WhatsApp."
+            Resultado.SIN_WHATSAPP -> "Ese número no tiene WhatsApp."
+            Resultado.FALLO -> "Abrí el chat pero no pude tocar Enviar. Leé la pantalla para terminar."
+        }
+    }
+
     fun parar(): String {
         if (!enviando) return "No hay ningún envío en curso."
         cortar = true

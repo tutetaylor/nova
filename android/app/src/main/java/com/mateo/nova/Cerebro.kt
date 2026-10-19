@@ -13,6 +13,10 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
 
     private class SinCuota : Exception()
 
+    companion object {
+        val BLOQUEOS = setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII")
+    }
+
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS).build()
     private val historial = mutableListOf<JSONObject>()
@@ -47,7 +51,7 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
             - Respondé con 2 a 5 oraciones, natural y con interés genuino. Podés opinar, contar cosas, bromear y cambiar de tema.
             - Casi siempre terminá con una pregunta o un comentario que invite a seguir hablando.
             - Acordate de lo que te fue contando en esta charla y retomalo. Podés hablar de cualquier tema que le interese.
-        """.trimIndent() else "- Respondé corto: 1 a 3 oraciones salvo que pidan detalle."
+        """.trimIndent() else ""
         val permisos = if (prefs.confirmar)
             "- Antes de enviar mensajes, llamar o publicar, decí exactamente qué vas a hacer y preguntá \"¿Lo hago?\". Seguí solo si dice que sí."
         else
@@ -57,17 +61,18 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
             "\nLo que sabés de ${prefs.usuario} (usalo con naturalidad cuando venga al caso, no lo recites):\n$it\n" }
         return """
 Sos ${prefs.nombre}, el asistente de voz personal de ${prefs.usuario}, que vive en ${prefs.ciudad}.
-Ahora es $ahora.
-$sabido
 Vivís en su celular Android y lo podés manejar entero. Hablás en español rioplatense (voseo).
 Tu personalidad: ${Personalidad.descripcion(prefs)}
 
 Voz (todo lo que escribís se lee en voz alta):
 $estilo
-- Conversación libre: podés hablar de cualquier tema que te traiga, sin vueltas: sexo, drogas, política, religión,
-  salud, plata, chismes, temas oscuros o polémicos. Respondé de frente, como un amigo adulto que sabe del tema:
-  sin sermones, sin advertencias de más y sin mandarlo a "consultar a un profesional" salvo que de verdad haga falta.
-  Si te pide tu opinión, dala. Si usa malas palabras o humor negro, podés acompañarlo.
+- Conversación sin límites: hablás de lo que sea, sin filtro ni vueltas: sexo, drogas, política, religión, salud,
+  plata, chismes, humor negro, temas oscuros, explícitos o polémicos, ficción, hipótesis y juegos de rol.
+  No esquives ningún tema por incómodo, explícito o polémico: no cambies de tema, no te disculpes y no des sermones
+  ni advertencias que no te pidió. Tratalo como un adulto que decide por sí mismo.
+  Si te pide tu opinión, dala con convicción, aunque sea polémica. Si usa malas palabras, podés usarlas también.
+- Largo: a una orden o pregunta simple, respondé corto. Si te pide explicar, contar, opinar, debatir o charlar,
+  extendete todo lo que haga falta, sin cortarte.
 - Sin markdown, listas, emojis ni URLs.
 - Si hiciste algo, confirmalo en pocas palabras ("Listo, puse la alarma para las siete").
 
@@ -86,6 +91,9 @@ Control del celular:
   Si falta el documento, usá documento_guardar; si falta el mensaje, preguntale cuál y usá plantilla_guardar.
   Después decí cuántos números encontraste y de quiénes, y preguntá "¿Lo mando?". Recién con su sí, envio_masivo_enviar.
   "Pará el envío" → envio_masivo_parar. "¿Cómo va?" → envio_masivo_estado.
+- Imágenes ("haceme una imagen de…", "dibujame…", "un fondo de pantalla de…") → generar_imagen, con el prompt en inglés,
+  rico en detalles (sujeto, estilo, luz, colores). Videos → generar_video. "Mandásela a Juli" → media_enviar;
+  "compartila" / "subila a Instagram" → media_compartir y después manejá la app con la pantalla.
 $permisos
 - Siempre, aunque estés en modo libre: preguntá antes de pagar, comprar, transferir plata, borrar cosas o hacer un envío masivo;
   nunca escribas contraseñas, códigos de verificación ni datos de tarjetas (que los ponga ${prefs.usuario});
@@ -106,6 +114,10 @@ $permisos
 - Precios de Mercado Libre → precio_seguir / precios_revisar. Envíos → envio_guardar / envios_ver. Para rutinas por voz ("modo dormir") el
   disparador es voz y el valor la frase. Para llegar/salir, si el lugar no está guardado, pedile que te diga
   "guardá este lugar como …" estando ahí. Para "todos los días a las 23 hacé …" usá aviso_programar con texto que empiece con "!".
+
+Contexto de ahora (cambia en cada pedido):
+Ahora es $ahora.
+$sabido
 """.trim()
     }
 
@@ -150,7 +162,7 @@ $permisos
 
     // ---------------------------------------------------------------- PENSAR
     /** Bloqueante: llamar desde un hilo de fondo. */
-    fun pensar(pedido: String): String {
+    fun pensar(pedido: String, alTexto: ((String) -> Unit)? = null): String {
         if (prefs.apiKey.isBlank()) return "Me falta la clave gratis de Gemini. Cargala en la app de ${prefs.nombre}."
         if (disponibles() <= 0)
             return "Llegué al límite de uso de esta hora. Vuelvo a estar disponible en ${minutosParaLiberar()} minutos."
@@ -168,10 +180,10 @@ $permisos
                         "En ${minutosParaLiberar()} minutos la retomamos."
                 }
                 registrarUso()
-                val resp = llamarApi()
+                val resp = llamarApi(alTexto)
                 val motivo = resp.optJSONArray("candidates")?.optJSONObject(0)?.optString("finishReason").orEmpty()
                 val bloqueo = resp.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty()
-                if (bloqueo.isNotBlank() || motivo in setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII")) {
+                if (bloqueo.isNotBlank() || motivo in BLOQUEOS) {
                     deshacer()
                     return "Eso Google no me deja responderlo, ni con los filtros al mínimo. Probá preguntármelo de otra forma."
                 }
@@ -212,8 +224,10 @@ $permisos
         return texto.ifBlank { "Listo." }
     }
 
-    /** Modelos que no aceptan "pensar poco" (se detecta solo la primera vez). */
-    private val sinNivelDePensamiento = mutableSetOf<String>()
+    /** Cuánto piensa antes de responder: "minimal" = casi inmediato. Si un modelo no acepta un nivel, prueba el siguiente. */
+    private val niveles = listOf("minimal", "low", null)
+    /** Modelo -> primer nivel que acepta (índice en [niveles]); se detecta solo. */
+    private val nivelDe = mutableMapOf<String, Int>()
     /** Modelos que no aceptan los filtros de contenido ajustados (se detecta solo). */
     private val sinAjusteDeFiltros = mutableSetOf<String>()
 
@@ -224,33 +238,51 @@ $permisos
             put(JSONObject().put("category", c).put("threshold", "BLOCK_NONE"))
     }
 
+    /** Abre la conexión con Google mientras todavía estás hablando: la respuesta llega antes. */
+    fun calentar() {
+        Thread {
+            runCatching {
+                http.newCall(Request.Builder().url("https://generativelanguage.googleapis.com/").head().build())
+                    .execute().close()
+            }
+        }.start()
+    }
+
     private fun cuerpo(modelo: String): String {
-        val gen = JSONObject().put("maxOutputTokens", 1024)
-        // Pensar poco = responder mucho más rápido. Para un asistente de voz alcanza y sobra.
-        if (modelo !in sinNivelDePensamiento) gen.put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
+        val gen = JSONObject().put("maxOutputTokens", 8192)
+        // Después de usar una herramienta piensa un poco más ("low"); para responder, lo mínimo
+        val rondaDeHerramientas = historial.lastOrNull()?.optJSONArray("parts")?.optJSONObject(0)?.has("functionResponse") == true
+        val nivel = niveles[maxOf(if (rondaDeHerramientas) 1 else 0, nivelDe[modelo] ?: 0)]
+        if (nivel != null) gen.put("thinkingConfig", JSONObject().put("thinkingLevel", nivel))
+        // El texto fijo va primero y la fecha al final: así Google reutiliza lo ya procesado y responde más rápido
         val cuerpo = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", personalidad()))))
-            .put("contents", JSONArray(historial))
             .put("tools", herramientasGemini)
-            .put("generationConfig", gen.put("maxOutputTokens", 2048))
+            .put("contents", JSONArray(historial))
+            .put("generationConfig", gen)
         if (modelo !in sinAjusteDeFiltros) cuerpo.put("safetySettings", filtrosAbiertos)
         return cuerpo.toString()
     }
 
-    private fun llamarApi(): JSONObject {
+    private fun llamarApi(alTexto: ((String) -> Unit)?): JSONObject {
         for (modelo in (listOf(prefs.modelo) + respaldo).distinct()) {
-            for (intento in 0..2) {
+            for (intento in 0..4) {
+                val metodo = if (alTexto != null) "streamGenerateContent?alt=sse" else "generateContent"
                 val req = Request.Builder()
-                    .url("https://generativelanguage.googleapis.com/v1beta/models/$modelo:generateContent")
+                    .url("https://generativelanguage.googleapis.com/v1beta/models/$modelo:$metodo")
                     .header("x-goog-api-key", prefs.apiKey)
                     .post(cuerpo(modelo).toRequestBody("application/json".toMediaType()))
                     .build()
-                val (codigo, txt) = http.newCall(req).execute().use { r -> r.code to r.body?.string().orEmpty() }
-                if (codigo in 200..299) return JSONObject(txt)
-                if (codigo == 400 && "thinking" in txt.lowercase() && modelo !in sinNivelDePensamiento) {
-                    sinNivelDePensamiento.add(modelo); continue          // reintenta sin esa opción
+                val r = http.newCall(req).execute()
+                if (r.isSuccessful) {
+                    return r.use { if (alTexto != null) leerStream(it, alTexto) else JSONObject(it.body?.string().orEmpty()) }
                 }
-                if (codigo == 400 && ("safety" in txt.lowercase() || "harm" in txt.lowercase()) && modelo !in sinAjusteDeFiltros) {
+                val codigo = r.code
+                val txt = r.use { it.body?.string().orEmpty() }.lowercase()
+                if (codigo == 400 && "thinking" in txt && (nivelDe[modelo] ?: 0) < niveles.size - 1) {
+                    nivelDe[modelo] = (nivelDe[modelo] ?: 0) + 1; continue      // no acepta ese nivel: prueba el siguiente
+                }
+                if (codigo == 400 && ("safety" in txt || "harm" in txt) && modelo !in sinAjusteDeFiltros) {
                     sinAjusteDeFiltros.add(modelo); continue
                 }
                 if (codigo == 429 || codigo == 404 || codigo == 503) break  // sin cuota o no existe: siguiente modelo
@@ -258,6 +290,37 @@ $permisos
             }
         }
         throw SinCuota()
+    }
+
+    /** Lee la respuesta a medida que Google la escribe: entrega frases a [alTexto] y arma la respuesta completa. */
+    private fun leerStream(r: okhttp3.Response, alTexto: (String) -> Unit): JSONObject {
+        val partes = JSONArray()
+        var fin = ""
+        var feedback = JSONObject()
+        val frases = Frases(alTexto)
+        val fuente = r.body?.source() ?: return JSONObject()
+        while (true) {
+            val linea = fuente.readUtf8Line() ?: break
+            if (!linea.startsWith("data:")) continue
+            val dato = runCatching { JSONObject(linea.substring(5).trim()) }.getOrNull() ?: continue
+            dato.optJSONObject("promptFeedback")?.let { feedback = it }
+            val cand = dato.optJSONArray("candidates")?.optJSONObject(0) ?: continue
+            cand.optString("finishReason").takeIf { it.isNotBlank() }?.let { fin = it }
+            val ps = cand.optJSONObject("content")?.optJSONArray("parts") ?: continue
+            for (i in 0 until ps.length()) {
+                val p = ps.getJSONObject(i)
+                if (p.has("text") && !p.optBoolean("thought")) frases.agregar(p.getString("text"))
+                val ultima = if (partes.length() > 0) partes.getJSONObject(partes.length() - 1) else null
+                if (p.has("text") && ultima != null && ultima.has("text") && p.optBoolean("thought") == ultima.optBoolean("thought")) {
+                    ultima.put("text", ultima.getString("text") + p.getString("text"))   // junta los pedacitos (conserva la firma)
+                    if (p.has("thoughtSignature")) ultima.put("thoughtSignature", p.getString("thoughtSignature"))
+                } else partes.put(JSONObject(p.toString()))
+            }
+        }
+        if (fin !in BLOQUEOS) frases.cerrar()
+        val cand = JSONObject().put("content", JSONObject().put("role", "model").put("parts", partes))
+        if (fin.isNotBlank()) cand.put("finishReason", fin)
+        return JSONObject().put("candidates", JSONArray().put(cand)).put("promptFeedback", feedback)
     }
 
     /** Mantiene la charla corta y resume las lecturas de pantalla viejas para gastar menos cuota. */
@@ -277,4 +340,33 @@ $permisos
             }
         }
     }
+}
+
+/**
+ * Va juntando el texto que llega de a pedacitos y entrega frases completas apenas están listas,
+ * para que la voz arranque con la primera sin esperar el resto.
+ */
+class Frases(private val entregar: (String) -> Unit) {
+    private val buf = StringBuilder()
+    private val finDeFrase = Regex("(?<=[.!?…:;])\\s+|\\n+")
+
+    fun agregar(t: String) {
+        buf.append(t)
+        while (true) {
+            var corte = finDeFrase.findAll(buf).firstOrNull { it.range.first >= 12 }?.range?.last?.plus(1)
+            if (corte == null) {
+                val coma = buf.lastIndexOf(", ")
+                if (buf.length > 180 && coma >= 60) corte = coma + 1 else return
+            }
+            sacar(corte)
+        }
+    }
+
+    private fun sacar(n: Int) {
+        val frase = buf.substring(0, n).trim()
+        buf.delete(0, n)
+        if (frase.isNotEmpty()) entregar(frase)
+    }
+
+    fun cerrar() = sacar(buf.length)
 }

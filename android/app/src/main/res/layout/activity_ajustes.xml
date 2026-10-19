@@ -228,6 +228,15 @@
                         android:layout_height="wrap_content" android:importantForAutofill="no" android:inputType="text" />
                     <TextView style="@style/Nova.Ayuda" android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Si se queda sin cuota, Nova prueba solo con otros modelos gratis." />
+
+                    <TextView style="@style/Nova.Etiqueta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp" android:text="Clave de Pollinations (imágenes y videos)" />
+                    <EditText android:id="@+id/clavePollinations" style="@style/Nova.Campo" android:layout_width="match_parent"
+                        android:layout_height="wrap_content" android:hint="sk_…" android:importantForAutofill="no"
+                        android:inputType="textPassword" android:textColorHint="@color/bruma" />
+                    <TextView android:id="@+id/linkPollinations" style="@style/Nova.Ayuda" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:textColor="@color/nebulosa"
+                        android:text="Opcional. Conseguila en enter.pollinations.ai (entrás con GitHub; trae crédito de regalo). Sin clave, las imágenes se intentan igual y los videos no." />
                 </LinearLayout>
 
                 <TextView style="@style/Nova.Seccion" android:layout_width="wrap_content" android:layout_height="wrap_content"

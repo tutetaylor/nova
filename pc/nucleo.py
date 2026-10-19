@@ -55,6 +55,8 @@ class Nucleo:
         self._abrir_charla = False             # al entrar tocando el botón, Nova saluda primero
         herramientas.avisar = self._recordatorio
         herramientas.al_modo_estudio = self._modo_estudio
+        herramientas.mostrar_imagen = self._mostrar_imagen
+        herramientas.anunciar = self._anunciar
         self.vinculo = None
         self._conectar_celular()
         herramientas.iniciar_recordatorios()
@@ -95,6 +97,16 @@ class Nucleo:
 
     def _apertura(self):
         return random.choice(APERTURAS).format(u=config.USUARIO or "")
+
+    def _mostrar_imagen(self, datos, tipo):
+        import base64
+        self.emitir("imagen", {"src": f"data:{tipo};base64,{base64.b64encode(datos).decode()}"})
+
+    def _anunciar(self, texto):
+        """Algo que terminó en segundo plano (un video): lo dice si no está ocupada."""
+        self._mensaje(False, texto)
+        if not self._lock.locked():
+            self.boca.decir(texto)
 
     def _recordatorio(self, texto):
         if texto.startswith("@"):          # rutina de buen día programada
@@ -204,15 +216,26 @@ class Nucleo:
                 self._estado("pensando", HERRAMIENTAS_LEGIBLES.get(nombre, "Trabajando…"))
                 return original(nombre, entrada)
             herramientas.ejecutar = con_aviso
+            tanda = self.boca.tanda()      # empieza a hablar con la primera frase, sin esperar el resto
+
+            def al_texto(frase):
+                if not tanda.dijo_algo:
+                    self._estado("hablando")
+                tanda.agregar(frase)
             try:
-                respuesta = self.cerebro.pensar(pedido)
+                respuesta = self.cerebro.pensar(pedido, al_texto=al_texto)
             except Exception as e:
                 traceback.print_exc()
                 respuesta = f"Uy, tuve un problema: {str(e)[:80]}. ¿Probamos de nuevo?"
             finally:
                 herramientas.ejecutar = original
             seguir = self.charla or (config.SEGUIR_CHARLANDO and respuesta.rstrip().endswith("?"))
-            self._responder(respuesta)
+            self._mensaje(False, respuesta)
+            if not tanda.dijo_algo:
+                self._estado("hablando")
+                tanda.agregar(respuesta)
+            tanda.terminar()
+            self._estado("espera" if self.activo else "apagado")
             return seguir
 
     def _responder(self, texto, hablar=True):
@@ -280,6 +303,8 @@ class Nucleo:
                 self._responder(self._apertura())
             elif not self._por_toque:
                 self.boca.decir("¿Sí?")      # queda guardado, sale al instante
+            if self.cerebro:
+                self.cerebro.calentar()      # mientras hablás, ya abre la conexión con Google
             self._por_toque = False
             seguir, silencios = True, 0
             while seguir and not self._detener.is_set():

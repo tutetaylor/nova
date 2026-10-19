@@ -57,8 +57,13 @@ class VozNatural(private val ctx: Context) {
     private fun escapar(t: String) = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         .replace("\"", "&quot;").replace("'", "&apos;")
 
-    /** Genera el MP3. Bloqueante (llamar en segundo plano). Devuelve null si algo falla. */
+    /** Genera el MP3. Bloqueante (llamar en segundo plano). Devuelve null si algo falla.
+     *  Las frases cortas ("Listo", "Dale") quedan guardadas: la próxima vez suenan al instante. */
     fun sintetizar(texto: String, voz: String, velocidad: String = "+8%"): File? {
+        val guardada = if (texto.length <= 40) File(File(ctx.cacheDir, "voz_cache").apply { mkdirs() },
+            MessageDigest.getInstance("MD5").digest("$voz|$velocidad|$texto".toByteArray())
+                .joinToString("") { "%02x".format(it) } + ".mp3") else null
+        if (guardada != null && guardada.length() > 0) return guardada
         val id = UUID.randomUUID().toString().replace("-", "")
         val req = Request.Builder()
             .url("$URL?TrustedClientToken=$TOKEN&Sec-MS-GEC=${token()}&Sec-MS-GEC-Version=$VERSION&ConnectionId=$id")
@@ -95,6 +100,10 @@ class VozNatural(private val ctx: Context) {
         fin.await(25, TimeUnit.SECONDS)
         ws.cancel()
         if (!ok) return null
+        if (guardada != null) {
+            val tmp = File(guardada.parentFile, "$id.tmp").apply { writeBytes(audio.toByteArray()) }
+            return if (tmp.renameTo(guardada)) guardada else tmp
+        }
         return File(ctx.cacheDir, "voz_$id.mp3").apply { writeBytes(audio.toByteArray()) }
     }
 
@@ -106,13 +115,16 @@ class VozNatural(private val ctx: Context) {
                 setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANT)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                 setDataSource(mp3.absolutePath)
-                setOnCompletionListener { mp3.delete(); parar(); alTerminar() }
-                setOnErrorListener { _, _, _ -> mp3.delete(); parar(); alTerminar(); true }
+                setOnCompletionListener { borrar(mp3); parar(); alTerminar() }
+                setOnErrorListener { _, _, _ -> borrar(mp3); parar(); alTerminar(); true }
                 prepare()
                 start()
             }
-        } catch (e: Exception) { mp3.delete(); parar(); alTerminar() }
+        } catch (e: Exception) { borrar(mp3); parar(); alTerminar() }
     }
+
+    /** Los audios de frases guardadas no se borran. */
+    private fun borrar(mp3: File) { if (mp3.parentFile?.name != "voz_cache") mp3.delete() }
 
     fun hablando() = try { reproductor?.isPlaying == true } catch (e: Exception) { false }
 
