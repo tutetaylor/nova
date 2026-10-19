@@ -514,7 +514,13 @@
    {
     "nombre": "Cerebro libre",
     "donde": "Celular y PC",
-    "detalle": "Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política). Cuando se niega, Nova le pasa la posta a otro modelo más abierto (DeepSeek, Kimi, GLM, Grok… por Pollinations, o modelos gratis de OpenRouter) y no llegás a escuchar el «no puedo». También podés usarlo siempre en modo charla. Se activa en Ajustes › Cerebro libre.",
+    "detalle": "Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política). Cuando se niega, Nova le pasa la posta a otro modelo más abierto (DeepSeek, Kimi, GLM, Grok… por Pollinations, o modelos gratis de OpenRouter) y no llegás a escuchar el «no puedo». Se activa solo si cargaste la clave de Pollinations (o elegís OpenRouter en Ajustes › Cerebro libre); si ese modelo también se niega, prueba con otro. En el chat ves cuándo respondió.",
+    "ejemplos": []
+   },
+   {
+    "nombre": "Modo +18",
+    "donde": "Celular y PC",
+    "detalle": "Charla adulta sin filtro: sexo explícito y rol entre adultos, lenguaje fuerte, violencia y gore en ficción, drogas sin vueltas, humor negro. Toda la charla va al cerebro libre (las órdenes siguen con Gemini). Se activa en Ajustes › Cerebro libre, confirmando que sos mayor de edad. Límites fijos: nada con menores, nada sexual sobre personas reales y nada que sirva para dañar a alguien de verdad.",
     "ejemplos": []
    },
    {

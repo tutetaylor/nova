@@ -38,6 +38,7 @@ class Puente:
             "pollinations": config.POLLINATIONS_KEY,
             "libreProveedor": config.LIBRE_PROVEEDOR, "libreClave": config.LIBRE_CLAVE,
             "libreModelo": config.LIBRE_MODELO, "libreCharla": config.LIBRE_EN_CHARLA,
+            "modoAdulto": config.MODO_ADULTO,
             "version": __import__("actualizar").version_actual(),
         }
 

@@ -465,7 +465,8 @@
       <div class="campo">
         <label for="fLibreProveedor">Proveedor</label>
         <select id="fLibreProveedor">
-          <option value="">Apagado</option>
+          <option value="">Automático (Pollinations si cargaste su clave)</option>
+          <option value="apagado">Apagado</option>
           <option value="pollinations">Pollinations (usa tu clave de imágenes)</option>
           <option value="openrouter">OpenRouter (gratis, unos 200 mensajes por día)</option>
         </select>
@@ -487,6 +488,16 @@
           <span>
             <b>Usarlo siempre en modo charla</b>
             <span class="ayuda">La charla va directo a este modelo (sin negativas). Para órdenes sigue Gemini.</span>
+          </span>
+        </label>
+      </div>
+      <div class="campo">
+        <label class="interruptor" for="fAdulto">
+          <input type="checkbox" id="fAdulto">
+          <span class="riel"></span>
+          <span>
+            <b>Modo +18</b>
+            <span class="ayuda">Charla adulta sin filtro: sexo explícito, rol, lenguaje fuerte, violencia en ficción, drogas sin vueltas. Toda la charla va al cerebro libre; las órdenes siguen con Gemini.</span>
           </span>
         </label>
       </div>
@@ -706,12 +717,17 @@ $("fConfirmar").onchange = textoConfirmar;
 function textoLibre() {
   const p = $("fLibreProveedor").value;
   $("campoLibreClave").style.display = p === "openrouter" ? "" : "none";
-  $("ayudaLibreModelo").textContent = p === "pollinations"
+  $("ayudaLibreModelo").textContent = (p === "pollinations" || (p === "" && $("fPollinations").value))
     ? "Recomendado: deepseek/deepseek-v4-flash. Otros abiertos: moonshotai/kimi-k3, z-ai/glm-5.3, x-ai/grok-4.3."
     : p === "openrouter" ? "Recomendado: openrouter/free (elige solo un modelo gratis). Podés poner cualquiera que termine en :free."
-    : "Elegí un proveedor para activarlo.";
+    : p === "" ? "Cargá la clave de Pollinations (más arriba) o elegí OpenRouter para activarlo."
+    : "Apagado: si Gemini se niega, te avisa.";
 }
 $("fLibreProveedor").onchange = textoLibre;
+$("fAdulto").onchange = () => {
+  if ($("fAdulto").checked && !confirm("Modo +18: contenido adulto explícito y sin filtro.\n\n¿Confirmás que sos mayor de 18 años?"))
+    $("fAdulto").checked = false;
+};
 $("linkOpenRouter").onclick = e => { e.preventDefault(); api()?.abrir_link("https://openrouter.ai/keys"); };
 $("fPersonalidad").onchange = () => {
   $("fPersonalidadPropia").style.display = $("fPersonalidad").value === "propia" ? "" : "none";
@@ -818,6 +834,7 @@ function abrirAjustes() {
   $("fPollinations").value = datos.pollinations || "";
   $("fLibreProveedor").value = datos.libreProveedor || ""; $("fLibreClave").value = datos.libreClave || "";
   $("fLibreModelo").value = datos.libreModelo || ""; $("fLibreCharla").checked = !!datos.libreCharla; textoLibre();
+  $("fAdulto").checked = !!datos.modoAdulto;
   $("uso").textContent = datos.limite > 0
     ? `Usaste ${datos.usadas} de ${datos.limite} en la última hora. 0 = sin límite.`
     : `Sin límite propio. Usaste ${datos.usadas} en la última hora.`;
@@ -930,6 +947,7 @@ $("guardar").onclick = async () => {
     CONFIRMAR: $("fConfirmar").checked ? "1" : "0",
     LIBRE_PROVEEDOR: $("fLibreProveedor").value, LIBRE_CLAVE: $("fLibreClave").value,
     LIBRE_MODELO: $("fLibreModelo").value, LIBRE_EN_CHARLA: $("fLibreCharla").checked ? "1" : "0",
+    MODO_ADULTO: $("fAdulto").checked ? "1" : "0",
     REPO: $("fRepo").value, TOKEN_GITHUB: $("fToken").value,
     PERSONALIDAD: $("fPersonalidad").value, PERSONALIDAD_PROPIA: $("fPersonalidadPropia").value,
     GEMINI_API_KEY: $("fClave").value, LIMITE_POR_HORA: $("fLimite").value || "0", MODELO: $("fModelo").value, POLLINATIONS_KEY: $("fPollinations").value,

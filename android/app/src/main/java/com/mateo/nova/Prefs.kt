@@ -107,6 +107,11 @@ class Prefs(ctx: Context) {
     var libreModelo: String
         get() = sp.getString("libre_modelo", "") ?: ""
         set(v) = sp.edit().putString("libre_modelo", v.trim()).apply()
+    /** Modo +18: charla adulta sin filtro por el cerebro libre (confirmado como mayor de edad). */
+    var modoAdulto: Boolean
+        get() = sp.getBoolean("modo_adulto", false)
+        set(v) = sp.edit().putBoolean("modo_adulto", v).apply()
+
     /** Usar el cerebro libre siempre en modo charla. */
     var libreEnCharla: Boolean
         get() = sp.getBoolean("libre_en_charla", false)

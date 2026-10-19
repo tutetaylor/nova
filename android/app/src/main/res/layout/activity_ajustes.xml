@@ -320,6 +320,36 @@
                             android:layout_height="wrap_content"
                             android:contentDescription="Usar el cerebro libre siempre en modo charla" />
                     </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView style="@style/Nova.Etiqueta" android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" android:layout_marginBottom="0dp"
+                                android:text="Modo +18" />
+                            <TextView style="@style/Nova.Ayuda"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="Charla adulta sin filtro: sexo explícito, rol, lenguaje fuerte, violencia en ficción, drogas sin vueltas. Toda la charla va al cerebro libre; las órdenes siguen con Gemini." />
+                        </LinearLayout>
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/modoAdulto"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:contentDescription="Modo +18" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <TextView style="@style/Nova.Seccion" android:layout_width="wrap_content" android:layout_height="wrap_content"

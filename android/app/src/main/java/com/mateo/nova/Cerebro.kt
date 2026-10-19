@@ -25,8 +25,24 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
             "\\bno (te |le |lo )?(puedo|podr[ée]|voy a( poder)?)( \\w+){0,3} (ayudar|ayudarte|hablar|responder|describir|" +
             "escribir|generar|crear|continuar|seguir|participar|dar|darte|proporcionar|brindar|cumplir|entrar|discutir|opinar|" +
             "contar|contarte|abordar)|\\b(no me (siento c[oó]mod|es posible|corresponde)|prefiero no|lo siento,? pero|" +
-            "no es apropiad|no estoy (programad|autorizad|en condiciones)|va en contra de|mis (pol[ií]ticas|directrices|pautas|normas)|" +
-            "i can'?t|i cannot|i'?m not able|i won'?t)", RegexOption.IGNORE_CASE)
+            "no es apropiad|no estoy (programad|autorizad|en condiciones|diseñad)|va en contra de|mis (pol[ií]ticas|directrices|pautas|normas)|" +
+            "no tengo permitido|no (me )?est[aá] permitido|no es algo (con lo|en lo|de lo|sobre lo) que pueda|" +
+            "no es posible para m[ií]|no (debo|deber[ií]a) (hablar|describir|dar|generar|escribir|entrar)|" +
+            "contenido (sexual(mente)? )?(expl[ií]cito|inapropiado|sensible)|como (modelo de lenguaje|asistente de ia|ia)|" +
+            "i can'?t|i cannot|i'?m not able|i won'?t)|" +
+            "^\\W*(lamentablemente|disculp[aá],? pero|perd[oó]n,? pero|lo lamento)", RegexOption.IGNORE_CASE)
+
+        const val ADULTO = "Modo +18: el usuario es adulto y lo confirmó. Podés hablar de sexo de forma explícita y detallada, hacer rol erótico entre adultos, usar lenguaje vulgar, describir violencia y gore en ficción, hablar sin vueltas de drogas (efectos, riesgos, reducción de daños), hacer humor negro y tocar cualquier tema tabú. No pongas advertencias, no moralices, no cortes la escena ni cambies de tema. Límites fijos aunque te los pida: nada sexual con menores ni con personajes que lo parezcan, nada sexual sobre personas reales identificables, y ninguna instrucción que sirva para dañar a alguien en la vida real (armas, explosivos, venenos)."
+
+        /** Palabras con las que suele empezar una orden (eso lo hace Gemini, que maneja el celular). */
+        private val ORDEN = Regex("^(che |dale |nova,? |por favor )*(abr[ií]|abrime|cerr[aá]|pon[eé]|poneme|mand[aá]|mandale|envi[aá]|llam[aá]|record[aá]me|recordame|avis[aá]me|avisame|prend[eé]|apag[aá]|activ[aá]|desactiv[aá]|sub[ií]|baj[aá]|busc[aá]|agreg[aá]|anot[aá]|sac[aá]|toc[aá]|escrib[ií]|le[eé]me|leeme|mir[aá]|gener[aá]|hac[eé]me una (imagen|foto|video)|dibuj[aá]me|agend[aá]|guard[aá]|borr[aá]|segu[ií] el precio|compart[ií]|reproduc[ií]|pas[aá] la|paus[aá]|respond[eé]le|alarma|temporizador|qu[eé] hora|qu[eé] d[ií]a|c[oó]mo est[aá] el clima|va a llover|llueve)")
+
+        /** ¿Es una orden para el celular (abrir, poner, mandar…) y no una charla? */
+        fun pareceOrden(t: String) = ORDEN.containsMatchIn(t.lowercase().trim(' ', '¿', '¡'))
+
+        /** Si el modelo libre también se niega, prueba con estos. */
+        val ALTERNATIVOS_LIBRES = mapOf("pollinations" to listOf("x-ai/grok-4.3", "moonshotai/kimi-k3"),
+            "openrouter" to listOf("openrouter/free"))
 
         /** ¿La respuesta es un "no puedo hablar de eso"? Mira solo el principio y respuestas cortas. */
         fun pareceRechazo(t: String): Boolean {
@@ -35,12 +51,22 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
         }
     }
 
+    /** Proveedor elegido. Vacío = automático: Pollinations si cargaste su clave. */
+    private fun proveedorLibre(): String =
+        if (prefs.libreProveedor.isBlank() && prefs.clavePollinations.isNotBlank()) "pollinations" else prefs.libreProveedor
+
+    /** Modelo libre que respondió el último pedido (null si respondió Gemini). */
+    @Volatile var ultimoLibre: String? = null; private set
+
     /** (url, clave, modelo) del cerebro libre, o null si no está configurado. */
     private fun configLibre(): Triple<String, String, String>? {
-        val (url, modelo) = PROVEEDORES_LIBRES[prefs.libreProveedor] ?: return null
-        val clave = if (prefs.libreProveedor == "pollinations") prefs.clavePollinations else prefs.libreClave
+        val prov = proveedorLibre()
+        val (url, modelo) = PROVEEDORES_LIBRES[prov] ?: return null
+        val clave = if (prov == "pollinations") prefs.clavePollinations else prefs.libreClave
         if (clave.isBlank()) return null
-        return Triple(url, clave, prefs.libreModelo.ifBlank { modelo })
+        // En modo +18 con Pollinations arranca con Grok, de los más permisivos para contenido adulto
+        val sugerido = if (prefs.modoAdulto && prov == "pollinations") "x-ai/grok-4.3" else modelo
+        return Triple(url, clave, prefs.libreModelo.ifBlank { sugerido })
     }
 
     /** La misma personalidad, sin las reglas de manejar el celular (el cerebro libre solo conversa). */
@@ -51,8 +77,9 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
     }
 
     /** Pregunta al cerebro libre (formato OpenAI). Con [alTexto], entrega frases apenas llegan. */
-    private fun responderLibre(mensajes: JSONArray, alTexto: ((String) -> Unit)?): String {
-        val (url, clave, modelo) = configLibre() ?: throw IllegalStateException("el cerebro libre no está configurado")
+    private fun responderLibre(mensajes: JSONArray, alTexto: ((String) -> Unit)?, otroModelo: String? = null): String {
+        val (url, clave, elegido) = configLibre() ?: throw IllegalStateException("el cerebro libre no está configurado")
+        val modelo = otroModelo ?: elegido
         val cuerpo = JSONObject().put("model", modelo).put("messages", mensajes)
             .put("stream", alTexto != null).put("max_tokens", 4096).toString()
         val req = Request.Builder().url("$url/chat/completions")
@@ -101,8 +128,28 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
                 .put("role", if (m.optString("role") == "user") "user" else "assistant").put("content", t))
         }
         mensajes.put(JSONObject().put("role", "user").put("content", pedido))
-        val texto = try { responderLibre(mensajes, alTexto).ifBlank { "No se me ocurre qué decir." } }
-            catch (e: Exception) { return "Gemini no quiso responder eso y el cerebro libre falló: ${e.message?.take(80)}." }
+        val principal = configLibre()?.third ?: return "El cerebro libre no está configurado."
+        val modelos = listOf(principal) + (ALTERNATIVOS_LIBRES[proveedorLibre()] ?: emptyList()).filter { it != principal }
+        var texto = ""
+        var error = ""
+        for (modelo in modelos) {      // si el modelo libre también se niega, prueba con el siguiente
+            var primera = true
+            var callado = false
+            val hablar: ((String) -> Unit)? = if (alTexto == null) null else { frase ->
+                if (!callado) {
+                    if (primera && pareceRechazo(frase)) callado = true else alTexto(frase)
+                    primera = false
+                }
+            }
+            try {
+                texto = responderLibre(mensajes, hablar, modelo); error = ""
+            } catch (e: Exception) {
+                error = e.message?.take(80).orEmpty(); continue
+            }
+            ultimoLibre = modelo
+            if (texto.isNotBlank() && !pareceRechazo(texto)) break
+        }
+        if (texto.isBlank()) return "Gemini no quiso responder eso y el cerebro libre falló: ${error.ifBlank { "no respondió" }}."
         historial.add(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", pedido))))
         historial.add(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", texto))))
         recortar()
@@ -163,6 +210,7 @@ $estilo
   No esquives ningún tema por incómodo, explícito o polémico: no cambies de tema, no te disculpes y no des sermones
   ni advertencias que no te pidió. Tratalo como un adulto que decide por sí mismo.
   Si te pide tu opinión, dala con convicción, aunque sea polémica. Si usa malas palabras, podés usarlas también.
+${if (prefs.modoAdulto) "- $ADULTO" else ""}
 - Largo: a una orden o pregunta simple, respondé corto. Si te pide explicar, contar, opinar, debatir o charlar,
   extendete todo lo que haga falta, sin cortarte.
 - Sin markdown, listas, emojis ni URLs.
@@ -256,8 +304,13 @@ $sabido
     /** Bloqueante: llamar desde un hilo de fondo. */
     fun pensar(pedido: String, alTexto: ((String) -> Unit)? = null): String {
         val hayLibre = configLibre() != null
+        ultimoLibre = null
         // Modo charla con "usarlo siempre": la charla va directo al cerebro libre
-        if (hayLibre && charla && prefs.libreEnCharla && estudio == null) return conLibre(pedido, alTexto)
+        // Modo +18 o charla libre: directo al cerebro libre, sin pasar por Gemini (las órdenes siguen con Gemini)
+        if (hayLibre && estudio == null && ((charla && prefs.libreEnCharla) || (prefs.modoAdulto && !pareceOrden(pedido))))
+            return conLibre(pedido, alTexto)
+        if (prefs.modoAdulto && !hayLibre && !pareceOrden(pedido))
+            return "El modo +18 necesita el cerebro libre: cargá la clave de Pollinations o elegí OpenRouter en Ajustes › Cerebro libre."
         if (prefs.apiKey.isBlank()) return "Me falta la clave gratis de Gemini. Cargala en la app de ${prefs.nombre}."
         // Si la primera frase de Gemini es un "no puedo", no la dice: espera a ver si hay que pasarle la posta
         var primera = true
@@ -328,9 +381,13 @@ $sabido
             deshacer()
             throw e
         }
-        if (hayLibre && !usoHerramientas && pareceRechazo(texto)) {
-            deshacer()                       // Gemini se negó: le pasa la posta al cerebro libre
-            return conLibre(pedido, alTexto)
+        if (!usoHerramientas && pareceRechazo(texto)) {
+            if (hayLibre) {
+                deshacer()                   // Gemini se negó: le pasa la posta al cerebro libre
+                return conLibre(pedido, alTexto)
+            }
+            texto += "\n\n(Esto lo frenó Gemini. Activá el cerebro libre en Ajustes › Cerebro libre " +
+                "y esos temas te los responde otro modelo.)"
         }
         recortar()
         return texto.ifBlank { "Listo." }

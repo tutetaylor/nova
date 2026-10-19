@@ -65,10 +65,11 @@ REPO = os.getenv("REPO", "")                       # usuario/repo de GitHub, par
 TOKEN_GITHUB = os.getenv("TOKEN_GITHUB", "")       # token de solo lectura del repo
 POLLINATIONS_KEY = os.getenv("POLLINATIONS_KEY", "")  # opcional: imágenes y videos (enter.pollinations.ai)
 # Cerebro libre: otro modelo que responde cuando Gemini se niega (o siempre en modo charla)
-LIBRE_PROVEEDOR = os.getenv("LIBRE_PROVEEDOR", "")    # "" (apagado) | pollinations | openrouter
+LIBRE_PROVEEDOR = os.getenv("LIBRE_PROVEEDOR", "")    # "" (automático) | apagado | pollinations | openrouter
 LIBRE_CLAVE = os.getenv("LIBRE_CLAVE", "")            # clave de OpenRouter (Pollinations usa POLLINATIONS_KEY)
 LIBRE_MODELO = os.getenv("LIBRE_MODELO", "")          # vacío = el recomendado del proveedor
 LIBRE_EN_CHARLA = os.getenv("LIBRE_EN_CHARLA", "0") == "1"
+MODO_ADULTO = os.getenv("MODO_ADULTO", "0") == "1"       # modo +18: la charla va al cerebro libre, sin negativas
 
 PERSONALIDAD = os.getenv("PERSONALIDAD", "calida")          # calida | graciosa | seria | motivadora | sarcastica | propia
 PERSONALIDAD_PROPIA = os.getenv("PERSONALIDAD_PROPIA", "")
@@ -90,8 +91,9 @@ CAMPOS_EDITABLES = {"NOMBRE": str, "USUARIO": str, "CIUDAD": str, "GEMINI_API_KE
                     "PERSONALIDAD": str, "PERSONALIDAD_PROPIA": str,
                     "VINCULO": str, "REPO": str, "TOKEN_GITHUB": str,
                     "POLLINATIONS_KEY": str, "SIN_LIMITE_V2": str,
-                    "LIBRE_PROVEEDOR": str, "LIBRE_CLAVE": str, "LIBRE_MODELO": str, "LIBRE_EN_CHARLA": str}
-SI_O_NO = {"CONFIRMAR", "LIBRE_EN_CHARLA"}
+                    "LIBRE_PROVEEDOR": str, "LIBRE_CLAVE": str, "LIBRE_MODELO": str, "LIBRE_EN_CHARLA": str,
+                    "MODO_ADULTO": str}
+SI_O_NO = {"CONFIRMAR", "LIBRE_EN_CHARLA", "MODO_ADULTO"}
 
 
 def guardar(cambios: dict):
