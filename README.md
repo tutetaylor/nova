@@ -342,6 +342,18 @@ En la PC: rutinas por voz (*"creá el modo estudio: abrí VS Code y poné músic
 - **Precios:** *"seguí el precio de este producto"* + el link de Mercado Libre. Revisa todos los días y avisa si baja.
 - **Envíos:** *"guardá el envío del teclado, código …"*. Para ver el estado abre la app de la empresa.
 
+## Cerebro libre (cuando Gemini se niega)
+
+Gemini tiene negativas **propias del modelo**, que ningún ajuste saca: contenido sexual explícito y algunos temas de guerra o política actual. Para eso Nova tiene un segundo cerebro:
+
+1. En **Ajustes › Cerebro libre**, elegí un proveedor:
+   - **Pollinations:** usa la misma clave de las imágenes. Modelo recomendado: `deepseek/deepseek-v4-flash`. Otros más abiertos que Gemini: `moonshotai/kimi-k3`, `z-ai/glm-5.3`, `x-ai/grok-4.3`.
+   - **OpenRouter:** 100% gratis, unos 200 mensajes por día. Sacá la clave gratis y sin tarjeta en [openrouter.ai/keys](https://openrouter.ai/keys). Modelo recomendado: `openrouter/free`, que elige solo un modelo gratis.
+2. Listo. Cuando Gemini responde «no puedo…» o Google bloquea la respuesta, contesta el cerebro libre. Nova frena la negativa antes de decirla, así que no la escuchás.
+3. **Opcional:** «Usarlo siempre en modo charla» manda la charla directo a ese modelo. Las órdenes (abrir apps, mandar mensajes…) las sigue haciendo Gemini, porque el cerebro libre solo conversa.
+
+Cada modelo tiene sus propias reglas. Si alguno se pone exigente con algo, probá con otro.
+
 ## Imágenes y videos
 
 *"Haceme una imagen de un gato astronauta estilo Pixar"*, *"un fondo de pantalla vertical de Buenos Aires de noche"*, *"haceme un video de olas al atardecer"*.
