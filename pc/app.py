@@ -35,6 +35,7 @@ class Puente:
             "charla": n.charla, "confirmar": config.CONFIRMAR,
             "personalidad": config.PERSONALIDAD, "personalidadPropia": config.PERSONALIDAD_PROPIA,
             "vinculo": config.VINCULO, "repo": config.REPO, "token": config.TOKEN_GITHUB,
+            "pollinations": config.POLLINATIONS_KEY,
             "version": __import__("actualizar").version_actual(),
         }
 

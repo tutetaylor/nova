@@ -68,6 +68,12 @@
             android:windowSoftInputMode="adjustResize" />
 
         <activity
+            android:name=".FuncionesActivity"
+            android:exported="false"
+            android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".CamaraActivity"
             android:exported="false"
             android:excludeFromRecents="true"

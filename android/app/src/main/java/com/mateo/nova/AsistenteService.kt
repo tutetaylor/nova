@@ -20,10 +20,15 @@ import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.io.File
+import kotlin.coroutines.resume
 import java.util.Locale
 
 /**
@@ -101,6 +106,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         vozNatural = VozNatural(this)
         Pomodoro.alHablar = { t -> main.post { if (estado == Estado.ESPERA) decir(t, seguir = false) else Bus.mensaje(false, t) } }
         EnvioMasivo.alHablar = { t -> main.post { if (estado == Estado.ESPERA) decir(t, seguir = false) } }
+        Medios.alHablar = { t -> main.post { if (estado == Estado.ESPERA) decir(t, seguir = false) } }
         Herramientas.alModoEstudio = { tema -> cerebro.estudio = tema; main.post { ponerCharla(true) } }
         if (Vinculo.codigoValido(prefs.codigoVinculo)) {
             vinculo = Vinculo(prefs.codigoVinculo) { m -> main.post { recibirDePC(m) } }.also { it.iniciar() }
@@ -158,6 +164,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         Avisos.alSonar = null
         Pomodoro.alHablar = null
         EnvioMasivo.alHablar = null
+        Medios.alHablar = null
         vinculo?.detener(); Herramientas.vinculo = null
         Herramientas.alModoEstudio = null
         callar()
@@ -182,8 +189,8 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         t.setSpeechRate(1.05f)
         t.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String?) {}
-            override fun onDone(id: String?) { main.post { terminoDeHablar() } }
-            @Deprecated("") override fun onError(id: String?) { main.post { terminoDeHablar() } }
+            override fun onDone(id: String?) { main.post { terminoFrase() } }
+            @Deprecated("") override fun onError(id: String?) { main.post { terminoFrase() } }
         })
         ttsListo = true
     }
@@ -194,37 +201,91 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             if (seguir) escucharPedido() else esperarNombre()
             return
         }
+        notificar(texto)
+        Bus.mensaje(deVos = false, texto = texto)
+        empezarAHablar(seguir).apply { agregar(texto); cerrar() }
+    }
+
+    /** Corta lo anterior, pasa a "hablando" y devuelve una tanda nueva para ir agregándole frases. */
+    private fun empezarAHablar(seguir: Boolean): Tanda {
+        callar()
         estado = Estado.HABLANDO
         seguirDespuesDeHablar = seguir
         frenarReconocimiento()
         oido.detener()          // que no se escuche a sí mismo
-        notificar(texto)
-        Bus.mensaje(deVos = false, texto = texto)
         Bus.estado(Bus.Estado.HABLANDO)
-        hablar(texto)
+        return Tanda(turnoVoz).also { tanda = it }
     }
 
-    /** Voz natural (Elena, Tomás…) si está elegida y hay internet; si no, la voz del sistema. */
-    private fun hablar(texto: String) {
-        val turno = ++turnoVoz
-        val voz = prefs.voz
-        if (voz == "sistema") { hablarSistema(texto); return }
-        scope.launch {
-            val mp3 = withContext(Dispatchers.IO) { runCatching { vozNatural.sintetizar(texto, voz) }.getOrNull() }
-            if (turno != turnoVoz || estado != Estado.HABLANDO) { mp3?.delete(); return@launch }   // la interrumpiste
-            if (mp3 == null) hablarSistema(texto)
-            else vozNatural.reproducir(mp3) { if (turno == turnoVoz) terminoDeHablar() }
+    private var tanda: Tanda? = null
+    /** Lo que hay que hacer cuando la voz del sistema termina la frase actual. */
+    private var alTerminarFrase: (() -> Unit)? = null
+
+    private fun terminoFrase() {
+        val f = alTerminarFrase ?: return
+        alTerminarFrase = null
+        f()
+    }
+
+    /**
+     * Frases que se dicen a medida que llegan (mientras Gemini todavía está escribiendo).
+     * Con la voz natural, genera el audio de la frase siguiente mientras dice la actual.
+     */
+    private inner class Tanda(val turno: Int) {
+        private val frases = Channel<String>(Channel.UNLIMITED)
+        private val audios = Channel<Pair<String, File?>>(2)
+        private val natural = prefs.voz != "sistema"
+        var dijoAlgo = false; private set
+        private val generador: Job = scope.launch(Dispatchers.IO) {
+            var usarNatural = natural
+            for (f in frases) {
+                val mp3 = if (usarNatural) runCatching { vozNatural.sintetizar(f, prefs.voz) }.getOrNull() else null
+                if (usarNatural && mp3 == null) usarNatural = false      // sin internet: el resto con la voz del sistema
+                audios.send(f to mp3)
+            }
+            audios.close()
         }
+        private val reproductor: Job = scope.launch {
+            for ((texto, mp3) in audios) {
+                if (turno != turnoVoz) { mp3?.let { borrarAudio(it) }; continue }
+                decirFrase(texto, mp3)
+            }
+            if (turno == turnoVoz) terminoDeHablar()
+        }
+
+        val vigente get() = turno == turnoVoz
+
+        fun agregar(f: String) {
+            if (!vigente || f.isBlank()) return
+            dijoAlgo = true
+            frases.trySend(f.trim())
+        }
+
+        fun cerrar() { frases.close() }
+
+        fun cancelar() { frases.close(); generador.cancel(); reproductor.cancel() }
     }
 
-    private fun hablarSistema(texto: String) {
-        if (!ttsListo) { main.postDelayed({ terminoDeHablar() }, 500); return }
-        tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, Bundle(), "r${System.currentTimeMillis()}")
+    private fun borrarAudio(f: File) { if (f.parentFile?.name != "voz_cache") f.delete() }
+
+    /** Dice una frase y vuelve cuando terminó de sonar. */
+    private suspend fun decirFrase(texto: String, mp3: File?) = suspendCancellableCoroutine<Unit> { cont ->
+        val listo: () -> Unit = { if (cont.isActive) cont.resume(Unit) }
+        when {
+            mp3 != null -> vozNatural.reproducir(mp3) { listo() }
+            ttsListo -> {
+                alTerminarFrase = listo
+                tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, Bundle(), "f${System.nanoTime()}")
+            }
+            else -> main.postDelayed({ listo() }, 300)
+        }
     }
 
     /** Corta lo que esté diciendo (cualquiera de las dos voces). */
     private fun callar() {
         turnoVoz++
+        tanda?.cancelar(); tanda = null
+        alTerminarFrase = null
         tts?.stop()
         if (::vozNatural.isInitialized) vozNatural.parar()
     }
@@ -240,8 +301,8 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-AR")
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
-        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 800L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
+        putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 650L)
     }
 
     private fun nuevoReconocedor(): SpeechRecognizer {
@@ -304,6 +365,7 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         }
         notificar("Te escucho…")
         Bus.estado(Bus.Estado.ESCUCHA)
+        cerebro.calentar()      // mientras hablás, ya abre la conexión con Google
         val r = nuevoReconocedor()
         r.setRecognitionListener(object : Escucha() {
             override fun onPartialResults(partialResults: Bundle?) {
@@ -456,11 +518,29 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
             val conContexto = if (System.currentTimeMillis() - anunciadoEn < 90_000 && anunciado.isNotEmpty())
                 "(Contexto: recién le leí al usuario estos mensajes nuevos: $anunciado. Si quiere responder, usá responder_mensaje; " +
                 "si quiere escucharlos, usá mensajes_sin_leer.)\n$pedido" else pedido
+            // Empieza a hablar con la primera frase que escribe Gemini, sin esperar la respuesta entera
+            var enVivo: Tanda? = null
+            val turnoPedido = turnoVoz
+            val alTexto: (String) -> Unit = { frase -> main.post {
+                if (enVivo == null && estado == Estado.PENSANDO && turnoVoz == turnoPedido)
+                    enVivo = empezarAHablar(seguir = modoCharla)
+                enVivo?.agregar(frase)
+            } }
             val respuesta = withContext(Dispatchers.IO) {
-                try { cerebro.pensar(conContexto) }
+                try { cerebro.pensar(conContexto, alTexto) }
                 catch (e: Exception) { Log.e(TAG, "Error", e); "Uy, tuve un problema: ${e.message?.take(80)}. ¿Probamos de nuevo?" }
             }
-            decir(respuesta, seguir = modoCharla || respuesta.trimEnd().endsWith("?"))
+            val seguir = modoCharla || respuesta.trimEnd().endsWith("?")
+            val t = enVivo
+            when {
+                t == null -> if (estado == Estado.PENSANDO) decir(respuesta, seguir) else Bus.mensaje(deVos = false, texto = respuesta)
+                t.vigente && t.dijoAlgo -> {
+                    seguirDespuesDeHablar = seguir
+                    notificar(respuesta); Bus.mensaje(deVos = false, texto = respuesta)
+                    t.cerrar()
+                }
+                else -> Bus.mensaje(deVos = false, texto = respuesta)   // la interrumpiste mientras hablaba
+            }
         }
     }
 
@@ -480,6 +560,9 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
         "envio_masivo_preparar" -> "Leyendo los números de las capturas…"
         "envio_masivo_enviar" -> "Arrancando el envío…"
         "documento_guardar" -> "Abriendo tus archivos…"
+        "generar_imagen" -> "Pintando la imagen…"
+        "generar_video" -> "Arrancando el video…"
+        "media_enviar" -> "Mandándola…"
         else -> "Trabajando…"
     }
 

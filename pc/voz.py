@@ -46,29 +46,47 @@ class Boca:
         if self._pygame:
             self._pygame.mixer.music.stop()
 
-    def _decir_neural(self, texto):
+    def tanda(self):
+        """Para hablar mientras la respuesta todavía se está escribiendo: agregás frases y suenan en orden,
+        generando el audio de la siguiente mientras dice la anterior."""
+        return Tanda(self)
+
+    def _sintetizar(self, texto) -> Path:
+        """Genera el MP3 de la frase (las cortas quedan guardadas para la próxima)."""
         import hashlib
+        import uuid
         import edge_tts
-        if not self._pygame:
-            raise RuntimeError("sin pygame")
         if len(texto) <= 40:   # frases cortas y repetidas ("¿Sí?", "Listo"): se generan una vez y quedan guardadas
             cache = config.DATOS / "voz_cache"
             cache.mkdir(exist_ok=True)
-            clave = hashlib.md5(f"{config.VOZ}|{config.VELOCIDAD_VOZ}|{texto}".encode()).hexdigest()
-            mp3 = cache / f"{clave}.mp3"
+            mp3 = cache / f"{hashlib.md5(f'{config.VOZ}|{config.VELOCIDAD_VOZ}|{texto}'.encode()).hexdigest()}.mp3"
+            if mp3.exists():
+                return mp3
         else:
-            mp3 = Path(tempfile.gettempdir()) / f"{config.NOMBRE.lower()}_voz.mp3"
-        if not mp3.exists() or mp3.parent == Path(tempfile.gettempdir()):
-            com = edge_tts.Communicate(texto, config.VOZ, rate=config.VELOCIDAD_VOZ)
-            tmp = mp3.with_suffix(".tmp")
-            asyncio.run(com.save(str(tmp)))
-            tmp.replace(mp3)   # recién ahora queda guardado, así nunca se cachea un audio a medias
+            mp3 = Path(tempfile.gettempdir()) / f"{config.NOMBRE.lower()}_voz_{uuid.uuid4().hex[:8]}.mp3"
+        com = edge_tts.Communicate(texto, config.VOZ, rate=config.VELOCIDAD_VOZ)
+        tmp = mp3.with_suffix(".tmp")
+        asyncio.run(com.save(str(tmp)))
+        tmp.replace(mp3)   # recién ahora queda guardado, así nunca se cachea un audio a medias
+        return mp3
+
+    def _reproducir(self, mp3: Path):
         m = self._pygame.mixer.music
         m.load(str(mp3))
         m.play()
         while m.get_busy() and not self._parar.is_set():
-            self._pygame.time.wait(50)
+            self._pygame.time.wait(30)
         m.unload()
+        if mp3.parent == Path(tempfile.gettempdir()):
+            try:
+                mp3.unlink()
+            except OSError:
+                pass
+
+    def _decir_neural(self, texto):
+        if not self._pygame:
+            raise RuntimeError("sin pygame")
+        self._reproducir(self._sintetizar(texto))
 
     def _decir_offline(self, texto):
         import pyttsx3
@@ -79,6 +97,67 @@ class Boca:
                 break
         motor.say(texto)
         motor.runAndWait()
+
+
+class Tanda:
+    """Frases que se van diciendo a medida que llegan. Un hilo genera audio, otro lo reproduce."""
+
+    def __init__(self, boca: Boca):
+        self.boca = boca
+        self.textos, self.audios = queue.Queue(), queue.Queue()
+        self.dijo_algo = False
+        self._hilo_voz = None
+        boca._parar.clear()               # habla nueva: lo que se haya cortado antes no cuenta
+        threading.Thread(target=self._generar, daemon=True).start()
+
+    def agregar(self, frase: str):
+        frase = frase.strip()
+        if not frase:
+            return
+        self.dijo_algo = True
+        self.textos.put(frase)
+        if self._hilo_voz is None:       # con la primera frase arranca a hablar
+            self._hilo_voz = threading.Thread(target=self._hablar, daemon=True)
+            self._hilo_voz.start()
+
+    def terminar(self, esperar=True):
+        """No llegan más frases. Si `esperar`, bloquea hasta que termine de hablar."""
+        self.textos.put(None)
+        if esperar and self._hilo_voz is not None:
+            self._hilo_voz.join()
+
+    def _generar(self):
+        neural = self.boca._pygame is not None
+        while True:
+            t = self.textos.get()
+            if t is None:
+                self.audios.put(None)
+                return
+            if self.boca._parar.is_set():
+                continue
+            try:
+                self.audios.put(("mp3", self.boca._sintetizar(t)) if neural else ("texto", t))
+            except Exception:
+                neural = False                      # sin internet: el resto con la voz del sistema
+                self.audios.put(("texto", t))
+
+    def _hablar(self):
+        with self.boca._lock:
+            self.boca._parar.clear()
+            while True:
+                item = self.audios.get()
+                if item is None:
+                    return
+                if self.boca._parar.is_set():       # la interrumpiste: descarta lo que falta
+                    continue
+                tipo, dato = item
+                try:
+                    if tipo == "mp3":
+                        self.boca._reproducir(dato)
+                    else:
+                        self.boca._decir_offline(dato)
+                except Exception:
+                    pass
 
 
 # ---------------------------------------------------------------- ESCUCHAR
@@ -162,7 +241,7 @@ class Oido:
                     hablo, silencio = True, 0
                 else:
                     silencio += 1
-                if hablo and silencio >= 4:          # ~1 s de silencio después de hablar
+                if hablo and silencio >= 3:          # ~0,75 s de silencio después de hablar
                     break
                 if not hablo and len(bloques) >= 16:   # 4 s sin que digas nada
                     return ""

@@ -7,6 +7,15 @@ import java.text.Normalizer
 class Prefs(ctx: Context) {
     private val sp = ctx.getSharedPreferences("nova", Context.MODE_PRIVATE)
 
+    init {
+        // Desde la versión "sin límites": el viejo límite de 60 por hora pasa a 0 (sin límite propio) una sola vez.
+        if (!sp.getBoolean("sin_limite_v2", false)) {
+            val e = sp.edit().putBoolean("sin_limite_v2", true)
+            if (sp.getInt("limite_hora", 0) == 60) e.putInt("limite_hora", 0)
+            e.apply()
+        }
+    }
+
     var apiKey: String
         get() = sp.getString("api_key", "") ?: ""
         set(v) = sp.edit().putString("api_key", v.trim()).apply()
@@ -35,7 +44,7 @@ class Prefs(ctx: Context) {
         set(v) = sp.edit().putBoolean("confirmar", v).apply()
     /** Consultas permitidas por hora. 0 = sin límite. */
     var limitePorHora: Int
-        get() = sp.getInt("limite_hora", 60)
+        get() = sp.getInt("limite_hora", 0)
         set(v) = sp.edit().putInt("limite_hora", v.coerceAtLeast(0)).apply()
     /** Momentos (ms) de las llamadas de la última hora, separados por coma. */
     var marcasUso: String
@@ -80,6 +89,11 @@ class Prefs(ctx: Context) {
     var appCasa: String
         get() = sp.getString("app_casa", "") ?: ""
         set(v) = sp.edit().putString("app_casa", v.trim()).apply()
+
+    /** Clave de Pollinations (enter.pollinations.ai) para generar imágenes y videos. Opcional. */
+    var clavePollinations: String
+        get() = sp.getString("clave_pollinations", "") ?: ""
+        set(v) = sp.edit().putString("clave_pollinations", v.trim()).apply()
 
     /** Leer en voz alta los mensajes que llegan. */
     var leerMensajes: Boolean

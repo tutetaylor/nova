@@ -31,6 +31,7 @@ class AjustesActivity : AppCompatActivity() {
     private lateinit var ciudad: EditText
     private lateinit var clave: EditText
     private lateinit var limite: EditText
+    private lateinit var clavePollinations: EditText
     private lateinit var modelo: EditText
     private lateinit var codigoVinculo: EditText
     private lateinit var repo: EditText
@@ -60,6 +61,8 @@ class AjustesActivity : AppCompatActivity() {
         ciudad = findViewById(R.id.ciudad)
         clave = findViewById(R.id.clave)
         limite = findViewById(R.id.limite)
+        clavePollinations = findViewById(R.id.clavePollinations)
+        clavePollinations.setText(prefs.clavePollinations)
         modelo = findViewById(R.id.modelo)
 
         nombre.setText(prefs.nombre)
@@ -121,6 +124,9 @@ class AjustesActivity : AppCompatActivity() {
         findViewById<View>(R.id.filaVoz).setOnClickListener { elegirVoz() }
         findViewById<View>(R.id.filaPersonalidad).setOnClickListener { elegirPersonalidad() }
         findViewById<View>(R.id.guardar).setOnClickListener { guardar() }
+        findViewById<View>(R.id.linkPollinations).setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://enter.pollinations.ai/keys")))
+        }
         findViewById<View>(R.id.linkClave).setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://aistudio.google.com/apikey")))
         }
@@ -259,7 +265,8 @@ class AjustesActivity : AppCompatActivity() {
         prefs.usuario = usuario.text.toString()
         prefs.ciudad = ciudad.text.toString()
         prefs.apiKey = clave.text.toString()
-        prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 60
+        prefs.limitePorHora = limite.text.toString().toIntOrNull() ?: 0
+        prefs.clavePollinations = clavePollinations.text.toString()
         prefs.modelo = modelo.text.toString()
         prefs.confirmar = confirmar.isChecked
         val vinculoCambio = codigoVinculo.text.toString().trim() != prefs.codigoVinculo

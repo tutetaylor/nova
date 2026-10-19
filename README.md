@@ -24,7 +24,7 @@ Funcionan separados: el de Android anda en cualquier lugar, sin la PC.
 - No actives la facturación (*billing*) en ese proyecto de Google. Sin facturación, Google nunca te cobra:
   cuando se termina la cuota gratis, simplemente responde "sin cuota" hasta que se renueva.
 - Si el modelo principal se queda sin cuota, Nova prueba solo con otros modelos gratis (`MODELOS_RESPALDO`).
-- El **límite por hora** (`LIMITE_POR_HORA`, por defecto 60) reparte la cuota para que no la gastes toda de golpe.
+- El **límite por hora** (`LIMITE_POR_HORA`) viene en 0 = sin límite propio (solo corre el de la capa gratis de Google). Si querés repartir la cuota, poné un número.
   Preguntale *"¿cuánto uso me queda?"* y te contesta sin gastar nada.
 - La cuota exacta de cada modelo la ves en https://aistudio.google.com/rate-limit.
 - En la capa gratis, Google puede usar lo que le mandás para mejorar sus productos. No le dictes datos sensibles.
@@ -123,6 +123,151 @@ toca, escribe y repite hasta terminar.
 
 ---
 
+<!-- FUNCIONES -->
+## Todo lo que puede hacer
+
+74 funciones. Las frases son ejemplos: decilo con tus palabras. En la app están en «Qué puedo hacer» (el botón **?** arriba) y tocando un ejemplo lo probás.
+
+### Lo básico
+*Cómo hablarle y cómo responde.*
+
+- **Palabra de activación** (Celular y PC): Decí su nombre y te escucha. Funciona sin internet y solo se activa si la frase es exacta, así no se despierta sola. También podés tocar la estrella o escribirle. Ej.: *«Nova»* · *«Oye Nova»* · *«Hola Nova»*
+- **Comandos instantáneos** (Celular y PC): Las cosas simples las hace al toque, sin gastar consultas de Gemini: hora, fecha, volumen, música, captura, bloquear, abrir apps, alarmas y temporizadores. Ej.: *«¿Qué hora es?»* · *«Subí el volumen»* · *«Siguiente canción»* · *«Abrí Spotify»* · *«Alarma a las 7 y media»* · *«Temporizador de 10 minutos»*
+- **Seguir la conversación** (Celular y PC): Después de responder sigue escuchando unos segundos por si querés agregar algo, sin repetir su nombre. Para cortar: «nada», «gracias», «listo». Ej.: *«Gracias, eso es todo»*
+- **Empezar de cero** (Celular y PC): Olvida la conversación actual (no la memoria permanente). Ej.: *«Olvidá todo»* · *«Empecemos de nuevo»*
+- **Respuestas al instante** (Celular y PC): Empieza a hablar con la primera frase mientras Gemini todavía escribe el resto, y prepara el audio de la frase siguiente mientras dice la actual. Las frases cortas quedan guardadas y suenan al toque.
+- **Límite por hora** (Celular y PC): Por defecto no tiene límite propio (solo el de la capa gratis de Google). Si querés cuidar la cuota, ponés un número en Ajustes. Ej.: *«¿Cuánto uso me queda?»*
+
+### Manejar el celular
+*Hace en el celular lo mismo que harías vos con el dedo.*
+
+- **Cualquier app, con la pantalla** (Celular): Lee lo que hay en pantalla, toca, escribe y desliza en cualquier app: WhatsApp, Instagram, Spotify, Mercado Libre, el banco para consultar, etc. Necesita el paso «Control de pantalla». Ej.: *«Abrí Instagram y dale like a la última foto de Juli»* · *«Poné en Spotify mi playlist de entrenar»* · *«Buscá en Mercado Libre zapatillas Nike talle 42»*
+- **Abrir apps** (Celular y PC): Abre apps del celular o programas de la PC por su nombre. Ej.: *«Abrí WhatsApp»* · *«Abrí Visual Studio Code»*
+- **Botones del sistema** (Celular): Atrás, inicio, recientes, notificaciones, ajustes rápidos, captura y bloquear. Ej.: *«Volvé atrás»* · *«Mostrame las notificaciones»* · *«Bloqueá el celular»*
+- **Prender la pantalla** (Celular): La enciende y pide quitar el bloqueo. Si Extend Unlock lo tiene desbloqueado queda abierto; si no, te pide huella o PIN. Nunca saltea tu bloqueo. Ej.: *«Prendé la pantalla»*
+- **Ajustes del celular** (Celular): Linterna, volumen, brillo, no molestar, y abre los paneles de wifi, bluetooth, datos, ubicación, sonido o batería. Ej.: *«Prendé la linterna»* · *«Brillo al 30»* · *«Activá no molestar»* · *«Abrí el wifi»*
+- **Batería** (Celular): Te dice cuánta batería tenés y si está cargando. Ej.: *«¿Cuánta batería tengo?»*
+
+### Manejar la PC
+*Programas, teclado, ventanas y energía.*
+
+- **Programas, carpetas y webs** (PC): Abre programas instalados, carpetas (Descargas, Documentos…) y páginas o búsquedas en el navegador. Ej.: *«Abrí la carpeta de descargas»* · *«Buscá en YouTube recetas de risotto»* · *«Abrí Gmail»*
+- **Escribir y atajos** (PC): Escribe donde esté el cursor y aprieta teclas o combinaciones. Ej.: *«Escribí «nos vemos a las 8»»* · *«Apretá control zeta»* · *«Mostrame el escritorio»*
+- **Energía** (PC): Bloquea, suspende, reinicia o apaga la PC (para reiniciar o apagar te pregunta, salvo en modo libre). Ej.: *«Bloqueá la compu»* · *«Apagá la PC en un rato»*
+- **Captura** (Celular y PC): Saca una captura de pantalla y la guarda. Ej.: *«Sacá una captura»*
+- **Notas rápidas** (PC): Anota ideas en la libreta de la PC y te las lee. Ej.: *«Anotá: idea para el portfolio, sección de testimonios»* · *«Leeme mis notas»*
+
+### Llamadas y mensajes
+*Hablar con la gente sin tocar el celular.*
+
+- **Llamar** (Celular): Llama a un contacto o número. Te confirma antes, salvo en modo libre. Ej.: *«Llamá a mamá»* · *«Llamá al 11 2345 6789»*
+- **WhatsApp y SMS** (Celular): Manda un WhatsApp o SMS a un contacto o número; WhatsApp lo envía solo tocando Enviar. Ej.: *«Mandale a Lucas por WhatsApp que llego en 10»* · *«Mandale un SMS a papá que ya salí»*
+- **Leerte los mensajes** (Celular): Te avisa en voz alta los mensajes que llegan (se puede apagar en Ajustes) y te resume lo que te perdiste, por chat. Necesita el paso «Leer tus mensajes». Ej.: *«¿Qué me perdí?»* · *«Leeme los mensajes de WhatsApp»*
+- **Responder sin abrir la app** (Celular): Responde desde la notificación, como el botón «Responder». Ej.: *«Respondele que sí, que mañana voy»* · *«Respondele a Sofi que ahora la llamo»*
+- **Desde la PC** (PC): Desde la PC le pedís al celular que mande mensajes o llame. Ej.: *«Mandale un WhatsApp a Juan desde el celular»*
+
+### Envíos masivos
+*Mandar tu CV o un mensaje a muchos números a la vez.*
+
+- **Leer números de capturas** (Celular): Lee las últimas capturas (o fotos) con visión y saca los teléfonos, con el nombre del lugar o la persona si aparece. Los pasa al formato de WhatsApp (saca el 0 y el 15, agrega el 549) y aparta los incompletos. Ej.: *«Escaneá los números de las últimas 10 capturas y mandales mi CV con el mensaje predeterminado»*
+- **Siempre te pregunta antes** (Celular): Te dice cuántos encontró y de quiénes, y espera tu sí, aunque estés en modo libre. Podés sacar a alguien de la lista. Ej.: *«Sacá el tercero»* · *«Sacá al de Don Julio»* · *«Dale, mandalo»*
+- **Envío de a uno, con pausas** (Celular): Manda mensaje y documento a cada uno, con 10 a 15 segundos entre contactos y hasta 40 por tanda, para cuidar tu cuenta. El celular tiene que estar desbloqueado. Te avisa al terminar quién no tiene WhatsApp. Ej.: *«¿Cómo va el envío?»* · *«Pará el envío»*
+- **No repite** (Celular): Recuerda a quién le mandó cada documento y lo saltea la próxima vez, salvo que le digas lo contrario. Ej.: *«Mandalo aunque ya se lo haya mandado»*
+- **Documentos guardados** (Celular): Elegís un archivo una sola vez (tu CV, un PDF) y queda guardado para mandarlo por voz. Ej.: *«Guardá mi CV»* · *«¿Qué documentos tenés guardados?»*
+- **Mensajes guardados (plantillas)** (Celular): Guardás textos para reusar. El «predeterminado» se usa si no decís otro. {nombre} se cambia por el nombre del lugar. Ej.: *«Guardá como mensaje predeterminado: Hola {nombre}, soy Mateo, cocinero…»* · *«¿Qué mensajes tenés guardados?»*
+
+### Imágenes y videos
+*Crea imágenes y videos cortos con IA, a partir de lo que le describas.*
+
+- **Generar imágenes** (Celular y PC): Hace la imagen que le pidas (fotos, ilustraciones, logos, fondos de pantalla), la abre y la guarda: en el celular en la galería (Imágenes › Nova), en la PC en Imágenes/Nova y además se ve en el chat. Tarda unos segundos. Ej.: *«Haceme una imagen de un gato astronauta estilo Pixar»* · *«Diseñame un logo minimalista para Codexa Studio»* · *«Un fondo de pantalla vertical de Buenos Aires de noche»*
+- **Generar videos** (Celular y PC): Videos cortos de 4 a 8 segundos. Se hacen en segundo plano (uno o dos minutos) y te avisa cuando están. Necesitan la clave de Pollinations. Ej.: *«Haceme un video de olas rompiendo al atardecer, toma con drone»* · *«Un video vertical de 8 segundos de una pizza saliendo del horno»*
+- **Mandar o compartir lo generado** (Celular): Manda la última imagen o video por WhatsApp a quien digas, o abre el menú de compartir (Instagram, Drive…). Ej.: *«Mandásela a Juli»* · *«Compartila en Instagram»*
+- **Clave de Pollinations** (Celular y PC): Las imágenes y videos los hace Pollinations. Con tu clave (enter.pollinations.ai, entrás con GitHub y trae crédito de regalo) anda siempre; sin clave, las imágenes se intentan igual y los videos no. Se pega en Ajustes › Cerebro gratis.
+
+### Ojos
+*Ve la pantalla y lo que le mostrás con la cámara.*
+
+- **Mirar la pantalla** (Celular y PC): Saca una captura y la entiende: describe fotos o videos, lee textos, explica errores, ubica botones sin texto. Ej.: *«¿Qué dice esto?»* · *«¿Qué error es este?»* · *«Resumime esta página»*
+- **Mirar con la cámara** (Celular): Abre la cámara, saca una foto y te dice qué ve: objetos, carteles, menús, etiquetas, y traduce. Ej.: *«¿Qué es esto?»* · *«Leeme este cartel»* · *«Traducime este menú»*
+
+### Memoria y datos
+*Se acuerda de vos y lleva tus cosas.*
+
+- **Memoria permanente** (Celular y PC): Se acuerda para siempre de lo que le contás y lo usa cuando viene al caso. Ej.: *«Acordate que soy alérgico al maní»* · *«¿Qué sabés de mí?»* · *«Olvidate de lo del maní»*
+- **Listas** (Celular y PC): Compras, pendientes, pelis, regalos… se crean solas. Ej.: *«Agregá leche y huevos a la lista de compras»* · *«¿Qué me falta comprar?»* · *«Ya compré la leche»* · *«Borrá la lista de pelis»*
+- **Gastos** (Celular y PC): Anota gastos por categoría y te dice cuánto gastaste. «Lucas» = miles. Ej.: *«Gasté 5 lucas en el súper»* · *«¿Cuánto gasté este mes?»* · *«¿Cuánto gasté en salidas esta semana?»* · *«Borrá el último gasto»*
+
+### Agenda y avisos
+*Tu día organizado.*
+
+- **Agenda de Google** (Celular): Lee y crea eventos en el calendario del celular (el de tu cuenta de Google). Necesita el paso «Agenda». Ej.: *«¿Qué tengo hoy?»* · *«¿Qué tengo mañana?»* · *«Agendá dentista el jueves a las 10»*
+- **Recordatorios** (Celular y PC): Te avisa por voz a la hora indicada, una vez o repetido (diario, semanal, de lunes a viernes). Ej.: *«Recordame en 20 minutos sacar la ropa»* · *«Avisame todos los días a las 9 que tome agua»* · *«¿Qué recordatorios tengo?»*
+- **Acciones programadas** (Celular y PC): No solo avisa: a esa hora HACE algo. Ej.: *«Todos los días a las 23 activá no molestar y bajá el brillo»*
+- **Rutina de buen día** (Celular y PC): Te saluda y te cuenta el clima, tus recordatorios y pendientes del día. Por voz o automática todos los días. Ej.: *«Buen día»* · *«Haceme la rutina de buen día todos los días a las 8»*
+- **Alarmas y temporizadores** (Celular): Pone alarmas y temporizadores en el reloj del celular. Ej.: *«Despertame a las 7»* · *«Temporizador de 15 minutos»*
+
+### Automatizaciones
+*«Cuando pase X, hacé Y», creadas hablando.*
+
+- **Rutinas por frase** (Celular y PC): Una frase dispara varias acciones. Ej.: *«Cuando diga «modo dormir», activá no molestar, poné alarma a las 7 y bajá el brillo»* · *«¿Qué rutinas tengo?»*
+- **Al conectar algo** (Celular): Auriculares, Bluetooth del auto o un parlante, cargador o al desconectarlo. Necesita el paso «Bluetooth» para el auto. Ej.: *«Cuando conecte los auriculares, poné mi playlist»* · *«Cuando me suba al auto, activá el modo manejo»*
+- **Batería baja** (Celular): Hace algo cuando la batería baja de un porcentaje. Ej.: *«Cuando la batería baje del 15, activá el ahorro de energía»*
+- **Al llegar o salir de un lugar** (Celular): Guardás un lugar estando ahí y Nova reacciona al llegar o irte. Necesita el paso «Ubicación todo el tiempo». Ej.: *«Guardá este lugar como casa»* · *«Cuando salga de casa, recordame las llaves»*
+- **Cuando te escribe alguien** (Celular): Reacciona a mensajes de una persona. Ej.: *«Cuando me escriba mamá, avisame aunque esté en no molestar»*
+
+### Personalidad y charla
+*Cómo es y de qué habla.*
+
+- **Modo charla** (Celular y PC): Conversación continua de ida y vuelta, sin decir su nombre cada vez. Termina si decís «basta» o te quedás callado un rato. Ej.: *«Charlemos»* · *«Hablemos un rato»* · *«Terminamos»*
+- **Conversación sin límites** (Celular y PC): Habla de lo que sea (sexo, drogas, política, religión, salud, plata, humor negro, temas oscuros, explícitos o polémicos, ficción y juegos de rol), de frente, sin sermones ni advertencias, y da su opinión. Si le pedís algo largo, se extiende sin cortarse. Los filtros de Gemini están al mínimo; lo poco que Google bloquea siempre, te lo avisa. Ej.: *«¿Qué opinás de…?»* · *«Contame sin vueltas cómo funciona…»* · *«Inventemos una historia de terror y vos sos el narrador»*
+- **Personalidad** (Celular y PC): Cálida, graciosa, seria, motivadora, sarcástica o una propia descrita por vos. Ej.: *«Sé más sarcástica»* · *«Ponete seria»* · *«Desde ahora hablá como un chef porteño»*
+- **Voz** (Celular y PC): Voces naturales argentinas y de otros países, o la del sistema (sin internet). En el celular se cambia también por voz; en la PC, en Ajustes. Ej.: *«Cambiá a voz de hombre»* · *«Usá la voz de Elena»*
+- **Modo libre o con permiso** (Celular y PC): Con permiso (por defecto) pregunta antes de mandar mensajes, llamar o publicar. En modo libre lo hace directo. Se cambia en Ajustes.
+
+### Estudio y foco
+*Para la facu y para concentrarte.*
+
+- **Modo estudio** (Celular y PC): Te toma examen oral: una pregunta por vez, corrige, explica y lleva la cuenta de aciertos. Ej.: *«Tomame examen de Python»* · *«Estudiemos la Revolución de Mayo»* · *«Explicame mejor esa»*
+- **Pomodoro** (Celular y PC): Bloques de foco con descansos; silencia el celular durante el foco y te avisa por voz. Ej.: *«Arrancá un pomodoro de 25 minutos para estudiar Flask»* · *«¿Cuánto falta?»* · *«Pará el pomodoro»*
+- **Resumen de estudio** (Celular y PC): Cuánto estudiaste y de qué. Ej.: *«¿Cuánto estudié esta semana?»*
+
+### Entretenimiento e info
+*Música, cuentos, noticias y preguntas.*
+
+- **DJ** (Celular y PC): Elige música según el momento o tu humor y la pone. Ej.: *«Poneme algo para cocinar»* · *«Algo tranqui para leer»*
+- **Música y videos** (Celular y PC): Busca y reproduce en Spotify, YouTube o YouTube Music; controla play, pausa, siguiente. Ej.: *«Poné Duki en Spotify»* · *«Pausa»* · *«Siguiente»*
+- **Cuentos y podcast** (Celular y PC): Inventa cuentos e historias, o arma un mini podcast con las noticias del día. Ej.: *«Contame un cuento de terror corto»* · *«Armame un podcast con las noticias de hoy»*
+- **Noticias** (Celular y PC): Titulares actuales de Argentina o de un tema. Ej.: *«¿Qué pasó hoy?»* · *«Noticias de tecnología»*
+- **Clima** (Celular y PC): Clima actual y pronóstico de tu ciudad o de otra. Ej.: *«¿Llueve mañana?»* · *«¿Qué clima hace en Córdoba?»*
+- **Preguntas y búsquedas** (Celular y PC): Responde lo que sabe. Para lo de actualidad, en la PC busca en internet y te responde; en el celular abre la búsqueda y lee la pantalla. Ej.: *«¿Cuánto está el dólar blue?»* · *«¿A qué hora juega Boca?»*
+- **Cómo llegar** (Celular): Abre Google Maps con indicaciones en auto, caminando, bici o transporte. Ej.: *«¿Cómo llego a Martínez en colectivo?»*
+
+### PC y celular juntos
+*Los dos conectados desde cualquier lugar, cifrado.*
+
+- **Manejar la PC desde el celular** (Celular): Le mandás órdenes a la PC estés donde estés y te responde lo que hizo. Ej.: *«En la compu poné música»* · *«Apagá la PC»* · *«¿Qué hay en la pantalla de la compu?»*
+- **Manejar el celular desde la PC** (PC): Lo mismo al revés: la PC le pide cosas al celular. Ej.: *«Poné una alarma en el celular a las 7»*
+- **Encontrar el celular** (PC): Lo hace sonar fuerte aunque esté en silencio. Ej.: *«¿Dónde está mi celular?»* · *«Hacé sonar el celular»*
+- **Actualización automática** (Celular y PC): Busca versiones nuevas en tu repo privado de GitHub y se instala sola (con repo y token en Ajustes). Ej.: *«Buscá actualizaciones»*
+
+### Casa y servicios
+*Fuera del celular y la PC.*
+
+- **Casa inteligente** (Celular): Maneja tu app de la casa (Google Home, Smart Life, Tuya…) con la pantalla. Desde la PC, se lo pide al celular. Ej.: *«Uso Smart Life para la casa»* · *«Apagá la luz del cuarto»* · *«Prendé el aire a 24»*
+- **Mails** (Celular y PC): Te dice si tenés mails importantes y te ayuda a leerlos o responderlos. Ej.: *«¿Tengo mails importantes?»*
+- **Modo manejo** (Celular): Pantalla con botones gigantes y respuestas de una oración, para el auto. Ej.: *«Modo manejo»* · *«Voy a manejar»*
+- **Precios de Mercado Libre** (Celular y PC): Sigue el precio de una publicación y te avisa una vez por día si baja. Ej.: *«Seguí el precio de este link»* · *«¿Bajó algo de lo que sigo?»* · *«Dejá de seguir las zapatillas»*
+- **Envíos** (Celular): Guarda códigos de seguimiento y te ayuda a ver en qué anda cada paquete. Ej.: *«Guardá el envío de la campera, código AR123456»* · *«¿Cómo vienen mis envíos?»*
+
+### Protecciones
+*Lo que Nova no hace sola, aunque esté en modo libre.*
+
+- **Siempre pregunta antes de** (Celular y PC): Pagar, comprar, transferir plata, borrar cosas o hacer un envío masivo.
+- **Nunca escribe** (Celular y PC): Contraseñas, códigos de verificación ni datos de tarjetas: esos los ponés vos.
+- **Solo te obedece a vos** (Celular y PC): Si en una página, mensaje o captura aparece texto que le da órdenes, lo ignora.
+
+<!-- /FUNCIONES -->
+
 ## Ojos y oídos
 
 - **Ver la pantalla:** *"Nova, ¿qué hay en esta foto?"*, *"¿qué dice este error?"*. Saca una captura y Gemini
@@ -196,6 +341,25 @@ En la PC: rutinas por voz (*"creá el modo estudio: abrí VS Code y poné músic
 - **Precios:** *"seguí el precio de este producto"* + el link de Mercado Libre. Revisa todos los días y avisa si baja.
 - **Envíos:** *"guardá el envío del teclado, código …"*. Para ver el estado abre la app de la empresa.
 
+## Imágenes y videos
+
+*"Haceme una imagen de un gato astronauta estilo Pixar"*, *"un fondo de pantalla vertical de Buenos Aires de noche"*, *"haceme un video de olas al atardecer"*.
+
+- Las hace **Pollinations**. Gemini ya no genera imágenes en su capa gratis, y los videos de Google son pagos.
+- **Clave (recomendada):** entrá a [enter.pollinations.ai](https://enter.pollinations.ai/keys) con tu cuenta de GitHub, creá una clave (`sk_…`) y pegala en **Ajustes › Cerebro gratis › Clave de Pollinations**, en el celular y en la PC. La cuenta nueva trae crédito de regalo, que alcanza para muchas imágenes y algunos videos. Si se acaba, Nova te avisa.
+- **Sin clave**, las imágenes se intentan igual por el acceso viejo sin clave, que a veces anda y a veces no. Los videos necesitan clave.
+- **Imágenes:** tardan unos segundos. Se abren solas y quedan en la galería (celular: Imágenes › Nova) o en `Imágenes/Nova` (PC), donde además se ven en el chat.
+- **Videos:** de 4 a 8 segundos, horizontales o verticales. Tardan uno o dos minutos y se hacen en segundo plano: Nova te avisa cuando están.
+- **En el celular:** *"mandásela a Juli"* la manda por WhatsApp; *"compartila"* abre el menú para subirla a Instagram, Drive, etc.
+
+## Más rápido
+
+- **Habla mientras piensa:** empieza a hablar con la primera frase que escribe Gemini, sin esperar la respuesta entera.
+- **Audio en paralelo:** genera el audio de la frase siguiente mientras dice la actual.
+- **Piensa lo justo:** usa el nivel de razonamiento mínimo para charlar y uno un poco más alto cuando maneja apps.
+- **Conexión lista:** abre la conexión con Google mientras le estás hablando.
+- **Frases guardadas:** las frases cortas ("Listo", "Dale") quedan guardadas y suenan al instante.
+
 ## Envíos masivos por WhatsApp
 
 Por ejemplo: *"Nova, escaneá los números de las últimas 10 capturas y mandales mi CV Mateo Taylor CHEF con el mensaje predeterminado"*.
@@ -218,7 +382,7 @@ Por ejemplo: *"Nova, escaneá los números de las últimas 10 capturas y mandale
 
 ## Modo charla y modo libre
 
-**Conversación libre:** Nova habla de cualquier tema (sexo, drogas, política, religión, salud, plata, temas oscuros o polémicos), de frente y sin sermones. Si le pedís su opinión, te la da. Además, los filtros de contenido de Gemini están al mínimo que deja Google. Lo único que Google bloquea siempre, por más que se lo pidas: ahí Nova te avisa que no se lo dejan responder.
+**Conversación sin límites:** Nova habla de lo que sea (sexo, drogas, política, religión, salud, plata, humor negro, temas oscuros, explícitos o polémicos, ficción y juegos de rol), de frente, sin sermones ni advertencias, y da su opinión. Si le pedís algo largo, se extiende sin cortarse. Los filtros de contenido de Gemini están al mínimo que deja Google; lo poco que Google bloquea siempre, Nova te avisa que no se lo dejan responder.
 
 - **Modo charla:** decí *"Nova, charlemos"* o tocá **Charlar**. Desde ahí es una conversación continua:
   hablás, te responde, y te sigue escuchando sin que digas "Nova" de nuevo. Charla como un amigo, te

@@ -190,6 +190,21 @@ class Herramientas(private val ctx: Context, private val prefs: Prefs) {
         h("responder_mensaje", "Responde un mensaje desde su notificación, sin abrir la app. Por defecto responde el más reciente.",
             p("texto", "string", "Qué responder"), p("chat", "string", "?Nombre del chat o persona"),
             p("indice", "integer", "?Número de ultimos_mensajes")),
+        // --- Imágenes y videos
+        h("generar_imagen", "Genera una imagen con IA a partir de una descripción, la guarda en la galería y la abre. " +
+            "Para 'haceme una imagen de…', 'dibujame…', 'creá un logo…', 'un fondo de pantalla de…'. Tarda unos segundos.",
+            p("prompt", "string", "Descripción para el generador, EN INGLÉS y detallada: sujeto, estilo, luz, encuadre, colores"),
+            p("formato", "string", "?cuadrado | vertical (fondo de pantalla, historia) | horizontal. Por defecto cuadrado"),
+            p("descripcion", "string", "?Resumen corto en español de qué es, para recordarla")),
+        h("generar_video", "Genera un video corto con IA (4 a 8 segundos) a partir de una descripción. Se hace en segundo plano " +
+            "(1 o 2 minutos) y Nova avisa cuando está; queda en la galería. Necesita la clave de Pollinations.",
+            p("prompt", "string", "Descripción EN INGLÉS y detallada: qué pasa, movimiento de cámara, estilo, luz"),
+            p("segundos", "integer", "?4, 6 u 8. Por defecto 4"),
+            p("formato", "string", "?horizontal | vertical. Por defecto horizontal"),
+            p("descripcion", "string", "?Resumen corto en español")),
+        h("media_enviar", "Manda por WhatsApp la última imagen o video que generaste a un contacto o número.",
+            p("destino", "string", "Nombre de contacto o número"), p("texto", "string", "?Mensaje para acompañar")),
+        h("media_compartir", "Abre el menú de compartir de Android con la última imagen o video generado (Instagram, Drive, etc.)."),
         // --- Envíos masivos
         h("envio_masivo_preparar", "Prepara un envío masivo por WhatsApp SIN mandar nada: lee los teléfonos de las últimas " +
             "capturas de pantalla (o de números que te dicte) y arma la lista con el mensaje y/o un documento guardado. " +
@@ -322,6 +337,18 @@ class Herramientas(private val ctx: Context, private val prefs: Prefs) {
                 if (e.has("indice")) e.getInt("indice") else null, e.optString("chat").ifBlank { null }) ?: SIN_NOTIF
             "envio_masivo_preparar" -> EnvioMasivo.preparar(ctx, prefs, e.optInt("capturas", 0), !e.optBoolean("todas_las_imagenes"),
                 e.optString("numeros"), e.optString("mensaje"), e.optString("plantilla"), e.optString("documento"), e.optBoolean("repetir"))
+            "generar_imagen" -> Medios.imagen(ctx, prefs, e.getString("prompt"), e.optString("formato"), e.optString("descripcion"))
+            "generar_video" -> Medios.video(ctx, prefs, e.getString("prompt"), e.optInt("segundos", 4), e.optString("formato"), e.optString("descripcion"))
+            "media_enviar" -> {
+                val u = Medios.ultimo
+                val num = resolverNumero(e.getString("destino"))
+                when {
+                    u == null -> "Todavía no generé ninguna imagen ni video."
+                    num == null -> "No encontré el número de ${e.getString("destino")}."
+                    else -> EnvioMasivo.mandarArchivo(ctx, formatoInternacional(num), u.uri, u.tipo, e.optString("texto"))
+                }
+            }
+            "media_compartir" -> Medios.compartir(ctx)
             "envio_masivo_quitar" -> EnvioMasivo.quitar(e.getString("cual"))
             "envio_masivo_enviar" -> EnvioMasivo.enviar(ctx)
             "envio_masivo_estado" -> EnvioMasivo.estado()
