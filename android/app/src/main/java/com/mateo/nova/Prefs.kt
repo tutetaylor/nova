@@ -95,6 +95,23 @@ class Prefs(ctx: Context) {
         get() = sp.getString("clave_pollinations", "") ?: ""
         set(v) = sp.edit().putString("clave_pollinations", v.trim()).apply()
 
+    /** Cerebro libre: "" (apagado), "pollinations" u "openrouter". Responde cuando Gemini se niega. */
+    var libreProveedor: String
+        get() = sp.getString("libre_proveedor", "") ?: ""
+        set(v) = sp.edit().putString("libre_proveedor", v.trim()).apply()
+    /** Clave de OpenRouter (Pollinations usa [clavePollinations]). */
+    var libreClave: String
+        get() = sp.getString("libre_clave", "") ?: ""
+        set(v) = sp.edit().putString("libre_clave", v.trim()).apply()
+    /** Modelo del cerebro libre; vacío = el recomendado del proveedor. */
+    var libreModelo: String
+        get() = sp.getString("libre_modelo", "") ?: ""
+        set(v) = sp.edit().putString("libre_modelo", v.trim()).apply()
+    /** Usar el cerebro libre siempre en modo charla. */
+    var libreEnCharla: Boolean
+        get() = sp.getBoolean("libre_en_charla", false)
+        set(v) = sp.edit().putBoolean("libre_en_charla", v).apply()
+
     /** Leer en voz alta los mensajes que llegan. */
     var leerMensajes: Boolean
         get() = sp.getBoolean("leer_mensajes", true)

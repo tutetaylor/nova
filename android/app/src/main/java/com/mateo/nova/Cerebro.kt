@@ -15,6 +15,98 @@ class Cerebro(private val prefs: Prefs, private val herramientas: Herramientas) 
 
     companion object {
         val BLOQUEOS = setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII")
+
+        /** Cerebro libre: otro modelo (más abierto) que responde cuando Gemini se niega. API compatible con OpenAI. */
+        val PROVEEDORES_LIBRES = mapOf(
+            "pollinations" to ("https://gen.pollinations.ai/v1" to "deepseek/deepseek-v4-flash"),   // usa la clave de imágenes
+            "openrouter" to ("https://openrouter.ai/api/v1" to "openrouter/free"))                  // gratis, ~200 por día
+
+        private val RECHAZO = Regex(
+            "\\bno (te |le |lo )?(puedo|podr[ée]|voy a( poder)?)( \\w+){0,3} (ayudar|ayudarte|hablar|responder|describir|" +
+            "escribir|generar|crear|continuar|seguir|participar|dar|darte|proporcionar|brindar|cumplir|entrar|discutir|opinar|" +
+            "contar|contarte|abordar)|\\b(no me (siento c[oó]mod|es posible|corresponde)|prefiero no|lo siento,? pero|" +
+            "no es apropiad|no estoy (programad|autorizad|en condiciones)|va en contra de|mis (pol[ií]ticas|directrices|pautas|normas)|" +
+            "i can'?t|i cannot|i'?m not able|i won'?t)", RegexOption.IGNORE_CASE)
+
+        /** ¿La respuesta es un "no puedo hablar de eso"? Mira solo el principio y respuestas cortas. */
+        fun pareceRechazo(t: String): Boolean {
+            val s = t.trim()
+            return s.isNotEmpty() && s.length < 700 && RECHAZO.containsMatchIn(s.take(220))
+        }
+    }
+
+    /** (url, clave, modelo) del cerebro libre, o null si no está configurado. */
+    private fun configLibre(): Triple<String, String, String>? {
+        val (url, modelo) = PROVEEDORES_LIBRES[prefs.libreProveedor] ?: return null
+        val clave = if (prefs.libreProveedor == "pollinations") prefs.clavePollinations else prefs.libreClave
+        if (clave.isBlank()) return null
+        return Triple(url, clave, prefs.libreModelo.ifBlank { modelo })
+    }
+
+    /** La misma personalidad, sin las reglas de manejar el celular (el cerebro libre solo conversa). */
+    private fun promptLibre(): String {
+        val p = personalidad()
+        val a = p.indexOf("Control del celular:"); val b = p.indexOf("Contexto de ahora")
+        return if (a >= 0 && b > a) p.substring(0, a) + "En esta respuesta no manejás el celular: solo conversás.\n\n" + p.substring(b) else p
+    }
+
+    /** Pregunta al cerebro libre (formato OpenAI). Con [alTexto], entrega frases apenas llegan. */
+    private fun responderLibre(mensajes: JSONArray, alTexto: ((String) -> Unit)?): String {
+        val (url, clave, modelo) = configLibre() ?: throw IllegalStateException("el cerebro libre no está configurado")
+        val cuerpo = JSONObject().put("model", modelo).put("messages", mensajes)
+            .put("stream", alTexto != null).put("max_tokens", 4096).toString()
+        val req = Request.Builder().url("$url/chat/completions")
+            .header("Authorization", "Bearer $clave")
+            .header("HTTP-Referer", "https://github.com/tutetaylor/nova").header("X-Title", "Nova")
+            .post(cuerpo.toRequestBody("application/json".toMediaType())).build()
+        http.newCall(req).execute().use { r ->
+            if (!r.isSuccessful) throw IllegalStateException(when (r.code) {
+                401 -> "la clave no es válida"; 402 -> "se quedó sin saldo"; 429 -> "llegó al límite por ahora"; else -> "error ${r.code}" })
+            val sinPensar = { t: String -> t.replace(Regex("<think>[\\s\\S]*?</think>"), "").substringBefore("<think>") }
+            if (alTexto == null) {
+                val t = JSONObject(r.body?.string().orEmpty()).optJSONArray("choices")?.optJSONObject(0)
+                    ?.optJSONObject("message")?.optString("content").orEmpty()
+                return sinPensar(t).trim()
+            }
+            val frases = Frases(alTexto)
+            val todo = StringBuilder()
+            var visto = 0
+            val fuente = r.body?.source() ?: return ""
+            while (true) {
+                val linea = fuente.readUtf8Line() ?: break
+                if (!linea.startsWith("data:")) continue
+                val dato = linea.substring(5).trim()
+                if (dato == "[DONE]") break
+                val t = runCatching { JSONObject(dato).optJSONArray("choices")?.optJSONObject(0)
+                    ?.optJSONObject("delta")?.optString("content").orEmpty() }.getOrDefault("")
+                if (t.isEmpty()) continue
+                todo.append(t)
+                // Algunos modelos piensan en voz alta entre <think>…</think>: eso no se dice
+                val visible = sinPensar(todo.toString())
+                if (visible.length > visto) { frases.agregar(visible.substring(visto)); visto = visible.length }
+            }
+            frases.cerrar()
+            return sinPensar(todo.toString()).trim()
+        }
+    }
+
+    /** Responde con el cerebro libre y deja la charla anotada para que Gemini siga el hilo. */
+    private fun conLibre(pedido: String, alTexto: ((String) -> Unit)?): String {
+        val mensajes = JSONArray().put(JSONObject().put("role", "system").put("content", promptLibre()))
+        for (m in historial.takeLast(16)) {
+            val partes = m.optJSONArray("parts") ?: continue
+            val t = (0 until partes.length()).map { partes.getJSONObject(it) }
+                .filter { it.has("text") && !it.optBoolean("thought") }.joinToString(" ") { it.getString("text") }.trim()
+            if (t.isNotEmpty()) mensajes.put(JSONObject()
+                .put("role", if (m.optString("role") == "user") "user" else "assistant").put("content", t))
+        }
+        mensajes.put(JSONObject().put("role", "user").put("content", pedido))
+        val texto = try { responderLibre(mensajes, alTexto).ifBlank { "No se me ocurre qué decir." } }
+            catch (e: Exception) { return "Gemini no quiso responder eso y el cerebro libre falló: ${e.message?.take(80)}." }
+        historial.add(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", pedido))))
+        historial.add(JSONObject().put("role", "model").put("parts", JSONArray().put(JSONObject().put("text", texto))))
+        recortar()
+        return texto
     }
 
     private val http = OkHttpClient.Builder()
@@ -163,7 +255,20 @@ $sabido
     // ---------------------------------------------------------------- PENSAR
     /** Bloqueante: llamar desde un hilo de fondo. */
     fun pensar(pedido: String, alTexto: ((String) -> Unit)? = null): String {
+        val hayLibre = configLibre() != null
+        // Modo charla con "usarlo siempre": la charla va directo al cerebro libre
+        if (hayLibre && charla && prefs.libreEnCharla && estudio == null) return conLibre(pedido, alTexto)
         if (prefs.apiKey.isBlank()) return "Me falta la clave gratis de Gemini. Cargala en la app de ${prefs.nombre}."
+        // Si la primera frase de Gemini es un "no puedo", no la dice: espera a ver si hay que pasarle la posta
+        var primera = true
+        var callado = false
+        val hablar: ((String) -> Unit)? = if (alTexto == null || !hayLibre) alTexto else { frase ->
+            if (!callado) {
+                if (primera && pareceRechazo(frase)) callado = true else alTexto(frase)
+                primera = false
+            }
+        }
+        var usoHerramientas = false
         if (disponibles() <= 0)
             return "Llegué al límite de uso de esta hora. Vuelvo a estar disponible en ${minutosParaLiberar()} minutos."
         val inicio = historial.size
@@ -180,12 +285,14 @@ $sabido
                         "En ${minutosParaLiberar()} minutos la retomamos."
                 }
                 registrarUso()
-                val resp = llamarApi(alTexto)
+                val resp = llamarApi(hablar)
                 val motivo = resp.optJSONArray("candidates")?.optJSONObject(0)?.optString("finishReason").orEmpty()
                 val bloqueo = resp.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty()
                 if (bloqueo.isNotBlank() || motivo in BLOQUEOS) {
                     deshacer()
-                    return "Eso Google no me deja responderlo, ni con los filtros al mínimo. Probá preguntármelo de otra forma."
+                    if (hayLibre) return conLibre(pedido, alTexto)
+                    return "Eso Google no me deja responderlo, ni con los filtros al mínimo. Si configurás el cerebro libre " +
+                        "en Ajustes, esos temas los responde otro modelo."
                 }
                 val contenido = resp.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")
                     ?: JSONObject()
@@ -202,6 +309,7 @@ $sabido
                 }
                 texto = textos.joinToString(" ").trim()
                 if (llamadas.isEmpty()) break
+                usoHerramientas = true
 
                 val respuestas = JSONArray()
                 for (ll in llamadas) {
@@ -219,6 +327,10 @@ $sabido
         } catch (e: Exception) {
             deshacer()
             throw e
+        }
+        if (hayLibre && !usoHerramientas && pareceRechazo(texto)) {
+            deshacer()                       // Gemini se negó: le pasa la posta al cerebro libre
+            return conLibre(pedido, alTexto)
         }
         recortar()
         return texto.ifBlank { "Listo." }

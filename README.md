@@ -126,7 +126,7 @@ toca, escribe y repite hasta terminar.
 <!-- FUNCIONES -->
 ## Todo lo que puede hacer
 
-74 funciones. Las frases son ejemplos: decilo con tus palabras. En la app están en «Qué puedo hacer» (el botón **?** arriba) y tocando un ejemplo lo probás.
+75 funciones. Las frases son ejemplos: decilo con tus palabras. En la app están en «Qué puedo hacer» (el botón **?** arriba) y tocando un ejemplo lo probás.
 
 ### Lo básico
 *Cómo hablarle y cómo responde.*
@@ -220,6 +220,7 @@ toca, escribe y repite hasta terminar.
 
 - **Modo charla** (Celular y PC): Conversación continua de ida y vuelta, sin decir su nombre cada vez. Termina si decís «basta» o te quedás callado un rato. Ej.: *«Charlemos»* · *«Hablemos un rato»* · *«Terminamos»*
 - **Conversación sin límites** (Celular y PC): Habla de lo que sea (sexo, drogas, política, religión, salud, plata, humor negro, temas oscuros, explícitos o polémicos, ficción y juegos de rol), de frente, sin sermones ni advertencias, y da su opinión. Si le pedís algo largo, se extiende sin cortarse. Los filtros de Gemini están al mínimo; lo poco que Google bloquea siempre, te lo avisa. Ej.: *«¿Qué opinás de…?»* · *«Contame sin vueltas cómo funciona…»* · *«Inventemos una historia de terror y vos sos el narrador»*
+- **Cerebro libre** (Celular y PC): Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política). Cuando se niega, Nova le pasa la posta a otro modelo más abierto (DeepSeek, Kimi, GLM, Grok… por Pollinations, o modelos gratis de OpenRouter) y no llegás a escuchar el «no puedo». También podés usarlo siempre en modo charla. Se activa en Ajustes › Cerebro libre.
 - **Personalidad** (Celular y PC): Cálida, graciosa, seria, motivadora, sarcástica o una propia descrita por vos. Ej.: *«Sé más sarcástica»* · *«Ponete seria»* · *«Desde ahora hablá como un chef porteño»*
 - **Voz** (Celular y PC): Voces naturales argentinas y de otros países, o la del sistema (sin internet). En el celular se cambia también por voz; en la PC, en Ajustes. Ej.: *«Cambiá a voz de hombre»* · *«Usá la voz de Elena»*
 - **Modo libre o con permiso** (Celular y PC): Con permiso (por defecto) pregunta antes de mandar mensajes, llamar o publicar. En modo libre lo hace directo. Se cambia en Ajustes.
