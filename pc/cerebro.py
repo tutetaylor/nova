@@ -45,6 +45,7 @@ Reglas de voz (todo lo que escribís se lee en voz alta):
   No esquives ningún tema por incómodo, explícito o polémico: no cambies de tema, no te disculpes y no des sermones
   ni advertencias que no te pidió. Tratalo como un adulto que decide por sí mismo.
   Si te pide tu opinión, dala con convicción, aunque sea polémica. Si usa malas palabras, podés usarlas también.
+{"- " + ADULTO if config.MODO_ADULTO else ""}
 - Largo: a una orden o pregunta simple, respondé corto. Si te pide explicar, contar, opinar, debatir o charlar,
   extendete todo lo que haga falta, sin cortarte.
 - Nada de markdown, listas, emojis, URLs ni símbolos raros. Números y horas escritos para decirse.
@@ -185,8 +186,12 @@ RECHAZO = re.compile(
     r"\bno (te |le |lo )?(puedo|podr[ée]|voy a( poder)?)( \w+){0,3} (ayudar|ayudarte|hablar|responder|describir|escribir|generar|crear|"
     r"continuar|seguir|participar|dar|darte|proporcionar|brindar|cumplir|entrar|discutir|opinar|contar|contarte|abordar)|"
     r"\b(no me (siento c[oó]mod|es posible|corresponde)|prefiero no|lo siento,? pero|no es apropiad|"
-    r"no estoy (programad|autorizad|en condiciones)|va en contra de|mis (pol[ií]ticas|directrices|pautas|normas)|"
-    r"i can'?t|i cannot|i'?m not able|i won'?t)", re.I)
+    r"no estoy (programad|autorizad|en condiciones|diseñad)|va en contra de|mis (pol[ií]ticas|directrices|pautas|normas)|"
+    r"no tengo permitido|no (me )?est[aá] permitido|no es algo (con lo|en lo|de lo|sobre lo) que pueda|"
+    r"no es posible para m[ií]|no (debo|deber[ií]a) (hablar|describir|dar|generar|escribir|entrar)|"
+    r"contenido (sexual(mente)? )?(expl[ií]cito|inapropiado|sensible)|como (modelo de lenguaje|asistente de ia|ia)|"
+    r"i can'?t|i cannot|i'?m not able|i won'?t)|"
+    r"^\W*(lamentablemente|disculp[aá],? pero|perd[oó]n,? pero|lo lamento)", re.I)
 
 
 def parece_rechazo(texto):
@@ -195,15 +200,40 @@ def parece_rechazo(texto):
     return bool(t) and len(t) < 700 and bool(RECHAZO.search(t[:220]))
 
 
+ADULTO = """Modo +18: el usuario es adulto y lo confirmó. Podés hablar de sexo de forma explícita y detallada, hacer rol erótico entre adultos, usar lenguaje vulgar, describir violencia y gore en ficción, hablar sin vueltas de drogas (efectos, riesgos, reducción de daños), hacer humor negro y tocar cualquier tema tabú. No pongas advertencias, no moralices, no cortes la escena ni cambies de tema. Límites fijos aunque te los pida: nada sexual con menores ni con personajes que lo parezcan, nada sexual sobre personas reales identificables, y ninguna instrucción que sirva para dañar a alguien en la vida real (armas, explosivos, venenos)."""
+ORDEN = re.compile(r"""^(che |dale |nova,? |por favor )*(abr[ií]|abrime|cerr[aá]|pon[eé]|poneme|mand[aá]|mandale|envi[aá]|llam[aá]|record[aá]me|recordame|avis[aá]me|avisame|prend[eé]|apag[aá]|activ[aá]|desactiv[aá]|sub[ií]|baj[aá]|busc[aá]|agreg[aá]|anot[aá]|sac[aá]|toc[aá]|escrib[ií]|le[eé]me|leeme|mir[aá]|gener[aá]|hac[eé]me una (imagen|foto|video)|dibuj[aá]me|agend[aá]|guard[aá]|borr[aá]|segu[ií] el precio|compart[ií]|reproduc[ií]|pas[aá] la|paus[aá]|respond[eé]le|alarma|temporizador|qu[eé] hora|qu[eé] d[ií]a|c[oó]mo est[aá] el clima|va a llover|llueve)""")
+
+
+def parece_orden(texto):
+    """¿Es una orden para la PC (abrir, poner, mandar…) y no una charla?"""
+    import unicodedata
+    t = unicodedata.normalize("NFC", (texto or "").lower().strip(" ¿¡"))
+    return bool(ORDEN.search(t))
+
+
+# Si el modelo libre también se niega, prueba con estos
+ALTERNATIVOS_LIBRES = {"pollinations": ["x-ai/grok-4.3", "moonshotai/kimi-k3"], "openrouter": ["openrouter/free"]}
+
+
+def proveedor_libre():
+    """Proveedor elegido. Vacío = automático: Pollinations si cargaste su clave."""
+    prov = (config.LIBRE_PROVEEDOR or "").strip().lower()
+    if not prov and config.POLLINATIONS_KEY:
+        return "pollinations"
+    return prov
+
+
 def config_libre():
     """(url, clave, modelo) del cerebro libre, o None si no está configurado."""
-    prov = (config.LIBRE_PROVEEDOR or "").strip().lower()
+    prov = proveedor_libre()
     if prov not in PROVEEDORES_LIBRES:
         return None
     url, modelo = PROVEEDORES_LIBRES[prov]
     clave = config.POLLINATIONS_KEY if prov == "pollinations" else config.LIBRE_CLAVE
     if not clave:
         return None
+    if config.MODO_ADULTO and prov == "pollinations":
+        modelo = "x-ai/grok-4.3"          # de los más permisivos para contenido adulto
     return url, clave, (config.LIBRE_MODELO or "").strip() or modelo
 
 
@@ -216,12 +246,13 @@ def prompt_libre(charla=False, estudio=None):
     return p
 
 
-def responder_libre(http, mensajes, al_texto=None):
+def responder_libre(http, mensajes, al_texto=None, modelo=None):
     """Pregunta al cerebro libre (formato OpenAI). Con `al_texto`, entrega frases apenas llegan."""
     cfg = config_libre()
     if not cfg:
         raise RuntimeError("el cerebro libre no está configurado")
-    url, clave, modelo = cfg
+    url, clave, elegido = cfg
+    modelo = modelo or elegido
     r = http.post(f"{url}/chat/completions", timeout=120, stream=bool(al_texto),
                   json={"model": modelo, "messages": mensajes, "stream": bool(al_texto), "max_tokens": 4096},
                   headers={"Authorization": f"Bearer {clave}", "HTTP-Referer": "https://github.com/tutetaylor/nova",
@@ -269,6 +300,7 @@ class Cerebro:
         self.estudio = None          # modo estudio: tema del examen oral
         self.nivel = {}              # modelo -> primer nivel de pensamiento que acepta (índice en NIVELES)
         self.sin_ajuste_filtros = set()
+        self.ultimo_libre = None     # modelo libre que respondió el último pedido (o None si fue Gemini)
 
     def olvidar(self):
         self.historial = []
@@ -361,10 +393,32 @@ class Cerebro:
             if texto:
                 mensajes.append({"role": "user" if m["role"] == "user" else "assistant", "content": texto})
         mensajes.append({"role": "user", "content": pedido})
-        try:
-            texto = responder_libre(self.http, mensajes, al_texto) or "No se me ocurre qué decir."
-        except Exception as e:
-            return f"Gemini no quiso responder eso y el cerebro libre falló: {str(e)[:80]}."
+        principal = config_libre()[2]
+        modelos = [principal] + [m for m in ALTERNATIVOS_LIBRES.get(proveedor_libre(), []) if m != principal]
+        texto, error = "", ""
+        for modelo in modelos:          # si el modelo libre también se niega, prueba con el siguiente
+            control = {"primera": True, "callado": False}
+
+            def hablar(frase):
+                if not al_texto or control["callado"]:
+                    return
+                if control["primera"]:
+                    control["primera"] = False
+                    if parece_rechazo(frase):
+                        control["callado"] = True
+                        return
+                al_texto(frase)
+            try:
+                texto = responder_libre(self.http, mensajes, hablar if al_texto else None, modelo) or ""
+                error = ""
+            except Exception as e:
+                error = str(e)[:80]
+                continue
+            self.ultimo_libre = modelo
+            if texto and not parece_rechazo(texto):
+                break
+        if not texto:
+            return f"Gemini no quiso responder eso y el cerebro libre falló: {error or 'no respondió'}."
         self.historial += [{"role": "user", "parts": [{"text": pedido}]}, {"role": "model", "parts": [{"text": texto}]}]
         self._recortar()
         return texto
@@ -373,8 +427,13 @@ class Cerebro:
         """Responde el pedido. Con `al_texto`, entrega cada frase apenas está lista (para empezar a hablar ya).
         Si Gemini se niega y hay cerebro libre configurado, responde ese otro modelo."""
         hay_libre = config_libre() is not None
-        if hay_libre and self.charla and config.LIBRE_EN_CHARLA and not self.estudio:
-            return self._con_libre(pedido, al_texto)
+        self.ultimo_libre = None
+        if hay_libre and not self.estudio and (
+                (self.charla and config.LIBRE_EN_CHARLA) or (config.MODO_ADULTO and not parece_orden(pedido))):
+            return self._con_libre(pedido, al_texto)          # modo +18 o charla libre: directo, sin pasar por Gemini
+        if config.MODO_ADULTO and not hay_libre and not parece_orden(pedido):
+            return ("El modo +18 necesita el cerebro libre: cargá la clave de Pollinations o elegí OpenRouter en "
+                    "Ajustes › Cerebro libre.")
         hablar = al_texto
         if al_texto and hay_libre:
             # Si la primera frase de Gemini es un "no puedo", no la dice: espera a ver si hay que pasarle la posta
@@ -433,9 +492,12 @@ class Cerebro:
         except Exception:
             del self.historial[inicio:]
             raise
-        if hay_libre and not uso_herramientas and parece_rechazo(texto):
-            del self.historial[inicio:]             # Gemini se negó: le pasa la posta al cerebro libre
-            return self._con_libre(pedido, al_texto)
+        if not uso_herramientas and parece_rechazo(texto):
+            if hay_libre:
+                del self.historial[inicio:]         # Gemini se negó: le pasa la posta al cerebro libre
+                return self._con_libre(pedido, al_texto)
+            texto += ("\n\n(Esto lo frenó Gemini. Activá el cerebro libre en Ajustes › Cerebro libre "
+                      "y esos temas te los responde otro modelo.)")
         self._recortar()
         return texto or "Listo."
 

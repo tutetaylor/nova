@@ -536,7 +536,8 @@ class AsistenteService : Service(), TextToSpeech.OnInitListener {
                 t == null -> if (estado == Estado.PENSANDO) decir(respuesta, seguir) else Bus.mensaje(deVos = false, texto = respuesta)
                 t.vigente && t.dijoAlgo -> {
                     seguirDespuesDeHablar = seguir
-                    notificar(respuesta); Bus.mensaje(deVos = false, texto = respuesta)
+                    notificar(respuesta)
+                    Bus.mensaje(deVos = false, texto = respuesta + (cerebro.ultimoLibre?.let { "\n\n— respondió el cerebro libre ($it)" } ?: ""))
                     t.cerrar()
                 }
                 else -> Bus.mensaje(deVos = false, texto = respuesta)   // la interrumpiste mientras hablaba

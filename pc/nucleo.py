@@ -230,7 +230,8 @@ class Nucleo:
             finally:
                 herramientas.ejecutar = original
             seguir = self.charla or (config.SEGUIR_CHARLANDO and respuesta.rstrip().endswith("?"))
-            self._mensaje(False, respuesta)
+            libre = getattr(self.cerebro, "ultimo_libre", None)
+            self._mensaje(False, respuesta + (f"\n\n— respondió el cerebro libre ({libre})" if libre else ""))
             if not tanda.dijo_algo:
                 self._estado("hablando")
                 tanda.agregar(respuesta)

@@ -126,7 +126,7 @@ toca, escribe y repite hasta terminar.
 <!-- FUNCIONES -->
 ## Todo lo que puede hacer
 
-75 funciones. Las frases son ejemplos: decilo con tus palabras. En la app están en «Qué puedo hacer» (el botón **?** arriba) y tocando un ejemplo lo probás.
+76 funciones. Las frases son ejemplos: decilo con tus palabras. En la app están en «Qué puedo hacer» (el botón **?** arriba) y tocando un ejemplo lo probás.
 
 ### Lo básico
 *Cómo hablarle y cómo responde.*
@@ -220,7 +220,8 @@ toca, escribe y repite hasta terminar.
 
 - **Modo charla** (Celular y PC): Conversación continua de ida y vuelta, sin decir su nombre cada vez. Termina si decís «basta» o te quedás callado un rato. Ej.: *«Charlemos»* · *«Hablemos un rato»* · *«Terminamos»*
 - **Conversación sin límites** (Celular y PC): Habla de lo que sea (sexo, drogas, política, religión, salud, plata, humor negro, temas oscuros, explícitos o polémicos, ficción y juegos de rol), de frente, sin sermones ni advertencias, y da su opinión. Si le pedís algo largo, se extiende sin cortarse. Los filtros de Gemini están al mínimo; lo poco que Google bloquea siempre, te lo avisa. Ej.: *«¿Qué opinás de…?»* · *«Contame sin vueltas cómo funciona…»* · *«Inventemos una historia de terror y vos sos el narrador»*
-- **Cerebro libre** (Celular y PC): Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política). Cuando se niega, Nova le pasa la posta a otro modelo más abierto (DeepSeek, Kimi, GLM, Grok… por Pollinations, o modelos gratis de OpenRouter) y no llegás a escuchar el «no puedo». También podés usarlo siempre en modo charla. Se activa en Ajustes › Cerebro libre.
+- **Cerebro libre** (Celular y PC): Gemini tiene negativas propias (contenido sexual explícito, algunos temas de guerra o política). Cuando se niega, Nova le pasa la posta a otro modelo más abierto (DeepSeek, Kimi, GLM, Grok… por Pollinations, o modelos gratis de OpenRouter) y no llegás a escuchar el «no puedo». Se activa solo si cargaste la clave de Pollinations (o elegís OpenRouter en Ajustes › Cerebro libre); si ese modelo también se niega, prueba con otro. En el chat ves cuándo respondió.
+- **Modo +18** (Celular y PC): Charla adulta sin filtro: sexo explícito y rol entre adultos, lenguaje fuerte, violencia y gore en ficción, drogas sin vueltas, humor negro. Toda la charla va al cerebro libre (las órdenes siguen con Gemini). Se activa en Ajustes › Cerebro libre, confirmando que sos mayor de edad. Límites fijos: nada con menores, nada sexual sobre personas reales y nada que sirva para dañar a alguien de verdad.
 - **Personalidad** (Celular y PC): Cálida, graciosa, seria, motivadora, sarcástica o una propia descrita por vos. Ej.: *«Sé más sarcástica»* · *«Ponete seria»* · *«Desde ahora hablá como un chef porteño»*
 - **Voz** (Celular y PC): Voces naturales argentinas y de otros países, o la del sistema (sin internet). En el celular se cambia también por voz; en la PC, en Ajustes. Ej.: *«Cambiá a voz de hombre»* · *«Usá la voz de Elena»*
 - **Modo libre o con permiso** (Celular y PC): Con permiso (por defecto) pregunta antes de mandar mensajes, llamar o publicar. En modo libre lo hace directo. Se cambia en Ajustes.
@@ -353,6 +354,19 @@ Gemini tiene negativas **propias del modelo**, que ningún ajuste saca: contenid
 3. **Opcional:** «Usarlo siempre en modo charla» manda la charla directo a ese modelo. Las órdenes (abrir apps, mandar mensajes…) las sigue haciendo Gemini, porque el cerebro libre solo conversa.
 
 Cada modelo tiene sus propias reglas. Si alguno se pone exigente con algo, probá con otro.
+
+- **Automático:** si cargaste la clave de Pollinations, el cerebro libre ya está activo, sin elegir nada.
+- **Varios intentos:** si el modelo libre también se niega, Nova prueba con otro (Grok y después Kimi).
+- **Quién respondió:** en el chat se ve «— respondió el cerebro libre (modelo)».
+
+### Modo +18
+
+Para charla adulta sin filtro. Activalo en **Ajustes › Cerebro libre › Modo +18** (te pide confirmar que sos mayor de edad).
+
+- **Qué permite:** sexo explícito y rol entre adultos, lenguaje fuerte, violencia y gore en ficción, drogas sin vueltas (efectos, riesgos, reducción de daños), humor negro y temas tabú. Sin advertencias ni sermones.
+- **Quién responde:** toda la charla va directo al cerebro libre, sin pasar por Gemini. En Pollinations arranca con `x-ai/grok-4.3`. Las órdenes (abrir apps, mandar mensajes, alarmas…) las sigue haciendo Gemini.
+- **Límites fijos:** nada sexual con menores, nada sexual sobre personas reales identificables y ninguna instrucción para dañar a alguien en la vida real.
+- **Requisito:** necesita el cerebro libre configurado (la clave de Pollinations u OpenRouter).
 
 ## Imágenes y videos
 
